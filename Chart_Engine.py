@@ -4,8 +4,6 @@ import matplotlib.pyplot as plt
 plt.style.use('dark_background')
 NEON_COLORS = ['#FF007F', '#00F0FF', '#FF00FF', '#7000FF', '#FFB800', '#00FF66', '#FF3300']
 
-
-# CHANGED: First argument is now 'fig' instead of 'ax'
 def create_smart_pie(fig, sizes, labels, total_value, title, title_color, current_font_size=9, y_threshold=0.16):
     # 1. COMPLETELY PURGE THE OLD GRAPH AND ALL LINGERING TEXT ENTIRELY
     fig.clf()
@@ -23,7 +21,7 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
     wedges, _ = ax.pie(
         sizes, colors=NEON_COLORS[:len(sizes)], startangle=270, counterclock=False,
         radius=1.05,
-        wedgeprops=dict(edgecolor='#222222', linewidth=2, antialiased=True)
+        wedgeprops=dict(edgecolor='#222222', linewidth=2, antialiased=True, width=None) # Setting width to <1 makes donut!
     )
 
     left_side_labels = []
