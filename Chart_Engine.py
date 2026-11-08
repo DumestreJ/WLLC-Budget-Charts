@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 plt.style.use('dark_background')
 NEON_COLORS = ['#FF007F', '#00F0FF', '#FF00FF', '#7000FF', '#FFB800', '#00FF66', '#FF3300']
 
+
 def create_smart_pie(fig, sizes, labels, total_value, title, title_color, current_font_size=9, y_threshold=0.16):
     # 1. COMPLETELY PURGE THE OLD GRAPH AND ALL LINGERING TEXT ENTIRELY
     fig.clf()
@@ -16,7 +17,7 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
         ax.text(0, 0, "No Data Available", color='white', weight="bold", ha="center")
         ax.set_title(title, color=title_color, fontsize=12, weight='bold', pad=10)
         ax.axis('off')
-        return
+        return []  # Return empty list on no data
 
     wedges, _ = ax.pie(
         sizes, colors=NEON_COLORS[:len(sizes)], startangle=270, counterclock=False,
@@ -36,7 +37,7 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
 
         label_text = f"{labels[i]}\n${sizes[i]:,.0f} ({percentage:.1f}%)"
 
-        if percentage >= 15.0:
+        if percentage >= 15.0:   # This determines whether info is put inside the pie wedge or outside
             ix = w.r * 0.58 * x
             iy = w.r * 0.58 * y
             ax.text(ix, iy, label_text, color="black", weight="bold", fontsize=current_font_size,
@@ -95,3 +96,5 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
     ax.set_xlim(-1.5, 1.9)
     ax.set_ylim(dynamic_bottom_limit, 1.5)
     ax.axis('off')
+
+    return wedges  # FEATURE IMPLEMENTATION: Expose generated wedges to click/hover listeners
