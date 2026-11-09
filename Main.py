@@ -674,35 +674,21 @@ class InteractiveDashboard:
 
     def load_initial_data(self):
         """Loads budget dataset configurations from the Desktop CSV or defaults to
-
-        hardcoded allocations, assigning explicit class title trackers for the layout engine.
+        hardcoded allocations, utilizing the permanent layout containers from create_left_panel.
         """
+        import os
+        import csv
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
         csv_filename = os.path.join(desktop_dir, "budget_data.csv")
 
-        self.inc_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
-        self.inc_frame.pack(fill="x", expand=True)
-
-        self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
-        self.exp_frame.pack(fill="x", expand=True)
-
-        # 1. Initialize Income headers and save explicit title frame row reference
-        tk.Label(self.inc_frame, text="INCOME CONFIG", fg='#00F0FF', bg='#1e1e1e',
-                 font=('Arial', 9, 'bold')).pack(anchor="w", pady=(10, 4), padx=5)
-        self.add_title_row(self.inc_frame, self.income_title_var, '#00F0FF')
-        self.inc_title_row = self.inc_frame.pack_slaves()[-1]
-        expense_header_printed = False
-
-        # Persistent gray readouts initialization
-        self.inc_other_lbl = tk.Label(self.inc_frame, fg='#777777', bg='#1e1e1e', font=('Arial', 9, 'italic'))
-        self.exp_other_lbl = tk.Label(self.exp_frame, fg='#777777', bg='#1e1e1e', font=('Arial', 9, 'italic'))
+        # Removed the redundant self.inc_frame/self.exp_frame creation and packing lines
+        # and deleted the duplicate tk.Label text headers that were doubling up on your layout viewport.
 
         if not os.path.exists(csv_filename):
             messagebox.showwarning("File Not Found", "Budget file not found on Desktop. Loading hardcoded defaults.")
             self.load_hardcoded_defaults()
             return
 
-        import csv
         try:
             with open(csv_filename, mode='r', newline='', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
@@ -729,14 +715,8 @@ class InteractiveDashboard:
                             self.income_inputs.append(self.add_input_row(self.inc_frame, category, amount))
 
                     elif dtype == "Expense":
-                        if not expense_header_printed:
-                            # 2. Initialize Expense headers and save explicit title frame row reference
-                            tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg='#FF007F', bg='#1e1e1e',
-                                     font=('Arial', 9, 'bold')).pack(anchor="w", pady=(20, 4), padx=5)
-                            self.add_title_row(self.exp_frame, self.expense_title_var, '#FF007F')
-                            self.exp_title_row = self.exp_frame.pack_slaves()[-1]
-                            expense_header_printed = True
-
+                        # Removed the internal conditional loop block that was printing
+                        # duplicate EXPENSE CONFIG label rows down the scrolling panel frame tree.
                         if category == "Expense Title":
                             self.expense_title_var.set(row.get('Title text', 'Budget Expenses Breakdown'))
                         elif "Total" in category:
@@ -744,6 +724,7 @@ class InteractiveDashboard:
                         else:
                             self.expense_inputs.append(self.add_input_row(self.exp_frame, category, amount))
 
+            # Re-attach operational addition buttons right beneath sorted data list elements
             tk.Button(self.inc_frame, text="+ Add Income Item", command=lambda: self.add_blank_row("Income"),
                       bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
 
@@ -783,6 +764,11 @@ class InteractiveDashboard:
             self.inc_title_row = self.inc_frame.pack_slaves()[1]
 
         _, self.exp_total_val = self.add_input_row(self.exp_frame, "Total Expense", 453400, is_total=True)
+        # Find the text entry box widget frame child we just made and recolor it to uniform pink/red
+        total_row_frame = self.exp_frame.pack_slaves()[-1]
+        for child in total_row_frame.winfo_children():
+            if isinstance(child, tk.Entry):
+                child.config(disabledforeground='#FF007F', fg='#FF007F')
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Clergy", 211400))
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Lay Ministry", 109400))
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Building", 64900))
