@@ -211,6 +211,7 @@ class InteractiveDashboard:
         row = tk.Frame(master, bg='#1e1e1e')
         row.pack(fill="x", pady=4, padx=5)
 
+        # A single-item list wrapper used to pass local variables across nested namespaces safely
         old_label_holder = [label_text.strip()]
 
         display_name = self.clean_label_text(label_text)
@@ -239,11 +240,54 @@ class InteractiveDashboard:
             lbl_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: lbl_entry.focus_set()))
         val_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: val_entry.focus_set()))
 
+        # =========================================================================
+        # CONTEXT MENU OPERATIONS
+        # =========================================================================
+        if not is_total:
+            context_menu = tk.Menu(self.root, tearoff=0, bg='#2a2a2a', fg='white',
+                                   activebackground='#00F0FF', activeforeground='black', bd=1)
+
+            def do_clear():
+                lbl_var.set("")
+                val_var.set("0")
+                self.process_inputs(is_live=True)
+
+            def do_restore():
+                lbl_var.set(self.clean_label_text(label_text))
+                val_var.set(val_str)
+                self.process_inputs(is_live=True)
+
+            def do_delete():
+                if (lbl_var, val_var) in self.income_inputs:
+                    self.income_inputs.remove((lbl_var, val_var))
+                elif (lbl_var, val_var) in self.expense_inputs:
+                    self.expense_inputs.remove((lbl_var, val_var))
+
+                self.subcategories.pop(lbl_entry.raw_data_key, None)
+                self.subcategories.pop(lbl_var.get().strip(), None)
+
+                row.destroy()
+                self.process_inputs()
+
+            context_menu.add_command(label="Clear Entry Fields", command=do_clear)
+            context_menu.add_command(label="Restore Default Values", command=do_restore)
+            context_menu.add_separator()
+            context_menu.add_command(label="Delete Category Row", command=do_delete)
+
+            def show_popup(event):
+                context_menu.post(event.x_root, event.y_root)
+
+            for widget in [row, lbl_entry, val_entry]:
+                widget.bind("<Button-3>", show_popup)
+                widget.bind("<Button-2>", show_popup)
+
+        # =========================================================================
+
         def sync_category_name_change(*args):
             if hasattr(self, 'is_updating_display') and self.is_updating_display:
                 return
-
             new_name = lbl_var.get().strip()
+            # FIXED: Target list index 0 explicitly to resolve scoping rules
             old_name = old_label_holder[0]
 
             if old_name and new_name and old_name != new_name:
@@ -254,18 +298,14 @@ class InteractiveDashboard:
                 # If account numbers are currently hidden, extract the prefix from our cached raw key handle
                 # and automatically prepend it onto the user's new label string.
                 import re
-                prefix_match = re.match(r'^(\d+(\.\d+)?\s*[\-·•]\s*)', true_old_key)
-                if prefix_match and not re.match(r'^\d+', new_name):
-                    true_new_key = f"{prefix_match.group(1)}{new_name}"
-
-                if true_old_key in self.subcategories:
-                    self.subcategories[true_new_key] = self.subcategories.pop(true_old_key)
-                elif old_name in self.subcategories:
-                    self.subcategories[true_new_key] = self.subcategories.pop(old_name)
-
+                prefix_match = re.match(r'^(\d+(\.\d+)?\s*[\-·•]\s*)', lbl_entry.raw_data_key)
+                true_new_key = f"{prefix_match.group(1)}{new_name}" if (
+                            prefix_match and not re.match(r'^\d+', new_name)) else new_name
+                if lbl_entry.raw_data_key in self.subcategories:
+                    self.subcategories[true_new_key] = self.subcategories.pop(lbl_entry.raw_data_key)
+                # FIXED: Overwrite list index 0 element target safely
                 old_label_holder[0] = new_name
-                lbl_entry.raw_data_key = true_new_key  # Permanently lock full prefix key back to memory property
-
+                lbl_entry.raw_data_key = true_new_key
             self.process_inputs(is_live=True)
 
         lbl_var.trace_add("write", sync_category_name_change)
