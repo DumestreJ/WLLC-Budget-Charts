@@ -65,16 +65,15 @@ def import_excel_budget(app):
         selector.wait_window()
         if not chosen_sheet_name: return
 
-        # FIXED: Purely reset tracking lists from application memory
+        # Reset tracking lists from application memory
         app.subcategories.clear()
         app.income_inputs.clear()
         app.expense_inputs.clear()
 
-        # FIXED: Safely loop over and destroy ONLY custom rows, protecting system titles and total frames
+        # Safely loop over and destroy custom rows, protecting system titles and total frames
         for frame, assigned_title in [(app.inc_frame, app.inc_title_row), (app.exp_frame, app.exp_title_row)]:
             for widget in frame.winfo_children():
                 if isinstance(widget, tk.Frame) and widget != assigned_title:
-                    # Verify it isn't the locked Total Limit row widget frame
                     is_total_row = any("Total" in c.get() for c in widget.winfo_children() if
                                        isinstance(c, tk.Entry) and hasattr(c, 'get'))
                     if not is_total_row:
@@ -95,10 +94,8 @@ def import_excel_budget(app):
 
             if val_e and val_f and not val_d:
                 val_e = f"{val_e} - {val_f}"
+
             # Detect section transitions from resources to expenditures
-                # Detect section transitions from resources to expenditures
-                # Detect section transitions from resources to expenditures
-                # Detect section transitions from resources to expenditures
             if "EXPENSES" in val_c.upper() or "EXPENSES" in val_d.upper():
                 current_section = "Expense"
                 current_category = "Unnamed Category"
@@ -143,20 +140,16 @@ def import_excel_budget(app):
             if val_e and val_l is not None:
                 if "TOTAL" in val_e.upper() or "SUM" in val_e.upper():
                     continue
-
                 try:
                     val = int(float(val_l))
                     if val == 0: continue
-
                     if current_category == "Unnamed Category" and current_section == "Income":
                         current_category = "Other Resources"
-
                     if current_category not in app.subcategories:
                         app.subcategories[current_category] = []
                     app.subcategories[current_category].append([val_e, val])
                 except (ValueError, TypeError):
                     pass
-
         # Compile and calculate ALL parent aggregates safely into a master orderable tracker list
         compiled_categories = []
         surplus_amount_found = 0
@@ -170,6 +163,7 @@ def import_excel_budget(app):
             if cat_name == "Assigned Surplus":
                 surplus_amount_found = cat_sum
 
+            # Explicit context map checks to isolate income sectors securely
             is_income = any(
                 "SUPPORT" in cat_name.upper() or "RESOURCES" in cat_name.upper() or "SURPLUS" in cat_name.upper()
                 for sub_lbl, _ in sub_items
@@ -180,6 +174,7 @@ def import_excel_budget(app):
 
             compiled_categories.append((cat_name, cat_sum, is_income))
 
+        # Enforce ordering sorting key targeting numeric index values safely
         compiled_categories.sort(key=lambda x: x[1], reverse=True)
 
         try:
@@ -189,7 +184,7 @@ def import_excel_budget(app):
         except (ValueError, TypeError, AttributeError):
             pass
 
-        # Generate the fully sorted widgets down the sidebar frame layout panel sequential rows
+        # Generate the sorted row widgets sequentially down the frame panel
         for cat_name, cat_sum, is_income in compiled_categories:
             if is_income:
                 lbl_var, val_var = app.add_input_row(app.inc_frame, cat_name, int(cat_sum))
@@ -198,11 +193,14 @@ def import_excel_budget(app):
                 lbl_var, val_var = app.add_input_row(app.exp_frame, cat_name, int(cat_sum))
                 app.expense_inputs.append((lbl_var, val_var))
 
-        # Re-instantiate operational addition buttons right beneath sorted sections layout
+        # Re-instantiate operational addition buttons right beneath sorted data list elements
         tk.Button(app.inc_frame, text="+ Add Income Item", command=lambda: app.add_blank_row("Income"),
-                  bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2")
+                  bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
+                                                                                                    pady=5)
+
         tk.Button(app.exp_frame, text="+ Add Expense Item", command=lambda: app.add_blank_row("Expense"),
-                  bg='#111111', fg='#FF007F', font=('Arial', 8, 'bold'), bd=0, cursor="hand2")
+                  bg='#111111', fg='#FF007F', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
+                                                                                                    pady=5)
 
         # Explicit Layout Sorting Manager to arrange visual tree elements flawlessly on screen
         layout_maps = [
@@ -232,7 +230,6 @@ def import_excel_budget(app):
                 elif isinstance(w, tk.Frame) and w != assigned_title_row:
                     entries = [c for c in w.winfo_children() if isinstance(c, tk.Entry)]
                     try:
-                        # FIXED: Extract the numeric entry field explicitly by targeting list index 1
                         val = float(entries[1].get() or 0.0) if len(entries) > 1 else 0.0
                     except (IndexError, ValueError):
                         val = 0.0
@@ -249,6 +246,16 @@ def import_excel_budget(app):
 
             if other_lbl: other_lbl.pack(anchor="w", padx=7, pady=2)
             if add_button: add_button.pack(anchor="w", padx=7, pady=5)
+
+        # Enforce a matching Pink/Red formatting style context to Expense summary total boxes
+        if hasattr(app, 'exp_frame') and app.exp_frame:
+            for widget in app.exp_frame.winfo_children():
+                if isinstance(widget, tk.Frame) and widget != app.exp_title_row:
+                    if any("Total" in c.get() for c in widget.winfo_children() if
+                           isinstance(c, tk.Entry) and hasattr(c, 'get')):
+                        for child in widget.winfo_children():
+                            if isinstance(child, tk.Entry):
+                                child.config(disabledforeground='#FF007F', fg='#FF007F')
 
         app.process_inputs()
         messagebox.showinfo("Success", f"Budget tab '{chosen_sheet_name}' successfully ingested!")
