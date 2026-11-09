@@ -1,7 +1,7 @@
 import os
 import sys
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from Chart_Engine import *  # Imports cleanly from your support module
 from budget_importer import import_excel_budget
@@ -76,50 +76,124 @@ class InteractiveDashboard:
         self.on_resize(forced=True)
 
     def create_left_panel(self):
-        # Parent set to self.paned_window and added to the slider layout split
-        panel_container = tk.Frame(self.paned_window, bg='#1e1e1e')
-        self.paned_window.add(panel_container, minsize=200)
+        """Creates a scrollable left panel, forcing a narrow canvas width constraint
 
-        panel_container.rowconfigure(0, weight=1)
-        panel_container.rowconfigure(1, weight=0)
-        panel_container.columnconfigure(0, weight=1)
+        to guarantee the right-hand dark scrollbar is fully visible on application startup.
+        """
+        # Hook directly back into your stable horizontal sliding sash paned container
+        self.left_panel = tk.Frame(self.paned_window, bg='#111111')
+        self.paned_window.add(self.left_panel)
 
-        scroll_container = tk.Frame(panel_container, bg='#1e1e1e')
-        scroll_container.grid(row=0, column=0, sticky="nsew", padx=2, pady=2)
+        # ---------------------------------------------------------------------
+        # ZONE 1: THE SCROLLABLE VIEWPORT CANVAS DECK (TOP AREA)
+        # ---------------------------------------------------------------------
+        scroll_outer_frame = tk.Frame(self.left_panel, bg='#111111')
+        scroll_outer_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(10, 5))
 
-        canvas = tk.Canvas(scroll_container, bg='#1e1e1e', highlightthickness=0)
-        scrollbar = ttk.Scrollbar(scroll_container, orient="vertical", command=canvas.yview)
+        # FIXED: Explicitly set width=180 to guarantee it fits inside your 220px default startup sash
+        self.scroll_canvas = tk.Canvas(scroll_outer_frame, bg='#111111', bd=0, highlightthickness=0, width=180)
+        self.scroll_canvas.pack(side="left", fill="both", expand=True)
 
-        self.scroll_frame = tk.Frame(canvas, bg='#1e1e1e')
-        self.scroll_frame.columnconfigure(0, weight=1)
+        # CUSTOM DARK STYLE: Use a ttk Scrollbar to mute the bright background color
+        from tkinter import ttk
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("Dark.Vertical.TScrollbar",
+                        background="#2a2a2a",      # Thumb handle gray color
+                        troughcolor="#111111",     # Track gutter dark background color
+                        arrowcolor="#777777",      # Arrow head indicator color
+                        bordercolor="#111111",     # Frame borders
+                        lightcolor="#2a2a2a",
+                        darkcolor="#2a2a2a")
 
-        self.scroll_frame.bind("<Configure>", lambda e: canvas.configure(
-            scrollregion=canvas.bbox("all")) if e.widget == self.scroll_frame else None)
-        canvas_frame_id = canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_frame_id, width=e.width))
+        v_scrollbar = ttk.Scrollbar(scroll_outer_frame, orient="vertical", command=self.scroll_canvas.yview, style="Dark.Vertical.TScrollbar")
+        v_scrollbar.pack(side="right", fill="y")
+        self.scroll_canvas.configure(yscrollcommand=v_scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True, padx=2, pady=5)
-        scrollbar.pack(side="right", fill="y")
+        self.scrollable_inner_frame = tk.Frame(self.scroll_canvas, bg='#111111')
+        self.canvas_window_id = self.scroll_canvas.create_window((0, 0), window=self.scrollable_inner_frame, anchor="nw")
 
-        actions_frame = tk.Frame(panel_container, bg='#1e1e1e')
-        actions_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
+        def configure_scroll_region(event):
+            self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all"))
+        self.scrollable_inner_frame.bind("<Configure>", configure_scroll_region)
 
-        import_btn = tk.Button(actions_frame, text="Import Spreadsheet Budget",
-                               command=lambda: import_excel_budget(self),
-                               bg='#FF00FF', fg='black', font=('Arial', 10, 'bold'), relief=tk.RAISED, pady=5)
-        import_btn.pack(fill="x", pady=3)
+        def configure_canvas_width(event):
+            # Dynamic updates adjust width cleanly when you manually drag the pane slider
+            self.scroll_canvas.itemconfig(self.canvas_window_id, width=event.width)
+        self.scroll_canvas.bind("<Configure>", configure_canvas_width)
 
-        update_btn = tk.Button(actions_frame, text="Update Charts", command=self.process_inputs,
-                               bg='#00F0FF', fg='black', font=('Arial', 10, 'bold'), relief=tk.RAISED, pady=5)
-        update_btn.pack(fill="x", pady=3)
+        def handle_mouse_wheel(event):
+            if event.num == 5 or event.delta < 0:
+                self.scroll_canvas.yview_scroll(1, "units")
+            elif event.num == 4 or event.delta > 0:
+                self.scroll_canvas.yview_scroll(-1, "units")
 
-        csv_btn = tk.Button(actions_frame, text="Update CSV File", command=self.save_to_csv,
-                            bg='#FFB800', fg='black', font=('Arial', 10, 'bold'), relief=tk.RAISED, pady=5)
-        csv_btn.pack(fill="x", pady=3)
+        self.scroll_canvas.bind_all("<MouseWheel>", handle_mouse_wheel)
+        self.scroll_canvas.bind_all("<Button-4>", handle_mouse_wheel)
+        self.scroll_canvas.bind_all("<Button-5>", handle_mouse_wheel)
 
-        save_btn = tk.Button(actions_frame, text="Save Charts to Desktop", command=self.save_charts,
-                             bg='#00FF66', fg='black', font=('Arial', 10, 'bold'), relief=tk.RAISED, pady=5)
-        save_btn.pack(fill="x", pady=3)
+        # Main dynamic inner rows containers
+        self.inc_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
+        self.inc_frame.pack(fill="x", expand=True, padx=(0, 15))
+
+        self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
+        self.exp_frame.pack(fill="x", expand=True, padx=(0, 15))
+
+        tk.Label(self.inc_frame, text="INCOME CONFIG", fg='#00F0FF', bg='#111111', font=('Arial', 9, 'bold')).pack(anchor="w", pady=(10, 4), padx=5)
+        self.add_title_row(self.inc_frame, self.income_title_var, '#00F0FF')
+        self.inc_title_row = self.inc_frame.pack_slaves()[-1]
+
+        tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg='#FF007F', bg='#111111', font=('Arial', 9, 'bold')).pack(anchor="w", pady=(20, 4), padx=5)
+        self.add_title_row(self.exp_frame, self.expense_title_var, '#FF007F')
+        self.exp_title_row = self.exp_frame.pack_slaves()[-1]
+
+        self.inc_other_lbl = tk.Label(self.inc_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
+        self.exp_other_lbl = tk.Label(self.exp_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
+
+        # ---------------------------------------------------------------------
+        # ZONE 2: THE NET POSITION SUMMARY BAR (MIDDLE ZONE)
+        # ---------------------------------------------------------------------
+        summary_outer_frame = tk.Frame(self.left_panel, bg='#111111')
+        summary_outer_frame.pack(side="top", fill="x", padx=15, pady=(5, 5))
+
+        top_sep = tk.Frame(summary_outer_frame, height=1, bg='#333333')
+        top_sep.pack(fill="x", side="top", pady=(0, 4))
+
+        self.net_summary_lbl = tk.Label(
+            summary_outer_frame, text="Net Position: $0",
+            fg='#ffffff', bg='#111111', font=('Arial', 10, 'bold'), anchor="w"
+        )
+        self.net_summary_lbl.pack(side="left", fill="x", expand=True, padx=5, pady=2)
+
+        bot_sep = tk.Frame(summary_outer_frame, height=1, bg='#333333')
+        bot_sep.pack(fill="x", side="bottom", pady=(4, 0))
+
+        # ---------------------------------------------------------------------
+        # ZONE 3: THE ORIGINAL 4 VERTICALLY STACKED SOLID NEON ACTION BUTTONS
+        # ---------------------------------------------------------------------
+        actions_frame = tk.Frame(self.left_panel, bg='#111111')
+        actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
+
+        from budget_importer import import_excel_budget
+        btn_import = tk.Button(actions_frame, text="Import Spreadsheet Budget", command=lambda: import_excel_budget(self),
+                               bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
+                               font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
+        btn_import.pack(fill="x", pady=4)
+
+        btn_update = tk.Button(actions_frame, text="Update Charts", command=self.process_inputs,
+                               bg='#00F0FF', fg='black', activebackground='#66f5ff', activeforeground='black',
+                               font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
+        btn_update.pack(fill="x", pady=4)
+
+        btn_save = tk.Button(actions_frame, text="Update CSV File", command=self.save_to_csv,
+                             bg='#FFaa00', fg='black', activebackground='#ffcc66', activeforeground='black',
+                             font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
+        btn_save.pack(fill="x", pady=4)
+
+        btn_export_charts = tk.Button(actions_frame, text="Save Charts to Desktop", command=self.save_charts,
+                                      bg='#00FF66', fg='black', activebackground='#66ff99', activeforeground='black',
+                                      font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
+        btn_export_charts.pack(fill="x", pady=4)
 
     def create_right_panel(self):
         # Parent set to self.paned_window and added to the sash layout splits
@@ -606,10 +680,10 @@ class InteractiveDashboard:
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
         csv_filename = os.path.join(desktop_dir, "budget_data.csv")
 
-        self.inc_frame = tk.Frame(self.scroll_frame, bg='#1e1e1e')
+        self.inc_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
         self.inc_frame.pack(fill="x", expand=True)
 
-        self.exp_frame = tk.Frame(self.scroll_frame, bg='#1e1e1e')
+        self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
         self.exp_frame.pack(fill="x", expand=True)
 
         # 1. Initialize Income headers and save explicit title frame row reference
@@ -816,6 +890,17 @@ class InteractiveDashboard:
             self.root.update_idletasks()
             self.on_resize(forced=True)
             self.is_updating = False
+
+            if hasattr(self, 'net_summary_lbl'):
+                try:
+                    net_position_val = self.total_income - self.total_expenses
+                    if net_position_val >= 0:
+                        self.net_summary_lbl.config(text=f"Net Surplus: +${int(net_position_val):,}", fg='#00F0FF')
+                    else:
+                        self.net_summary_lbl.config(text=f"Net Deficit: -${int(abs(net_position_val)):,}", fg='#FF007F')
+                except (ValueError, TypeError, AttributeError):
+                    pass
+
 
         except ValueError:
             self.is_updating = False
