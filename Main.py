@@ -783,7 +783,7 @@ class InteractiveDashboard:
         try:
             self.is_updating = True
 
-            # FIXED: Added a rigid structural guard to ensure plain text fields are never locked out
+            # Added a rigid structural guard to ensure plain text fields are never locked out
             self.is_updating_display = True
             for frame in [self.inc_frame, self.exp_frame]:
                 for row_frame in frame.winfo_children():
@@ -895,6 +895,9 @@ class InteractiveDashboard:
             self.expense_inputs.append(new_row)
 
     def on_resize(self, event=None, forced=False):
+        """Manages responsive scaling mechanics, allowing wide rectangular canvas bounding boxes
+        to unlock massive horizontal and vertical scaling space for the charts.
+        """
         if event and event.widget != self.root and event.widget != self.main_frame:
             return
 
@@ -909,13 +912,19 @@ class InteractiveDashboard:
         if right_panel_w < 50:
             right_panel_w = (w_width * 5 // 6)
 
+        # Decoupled width and height so they can scale into widescreen rectangles natively
         available_w = (right_panel_w - 85) // 2
-        available_h = w_height - 85
-        size_pixels = max(150, min(available_w, available_h))
-        size_inches = size_pixels / 100.0
+        available_h = w_height - 110  # Slightly padded to leave a clean runway for titles
 
-        font_sz = min(9.5, max(7.2, 7.2 + (size_inches * 0.40)))
-        thresh = min(0.24, max(0.15, 0.26 - (size_inches * 0.022)))
+        size_pixels_w = max(150, available_w)
+        size_pixels_h = max(150, available_h)
+
+        size_inches_w = size_pixels_w / 100.0
+        size_inches_h = size_pixels_h / 100.0
+
+        # Maintain uniform font sizes relative to the vertical tracking bounds
+        font_sz = min(9.5, max(7.2, 7.2 + (size_inches_h * 0.40)))
+        thresh = min(0.24, max(0.15, 0.26 - (size_inches_h * 0.022)))
 
         self.income_wedges = create_smart_pie(self.fig_income, self.income_sizes, self.income_labels, self.total_income,
                                               self.income_title_var.get(), '#00F0FF', font_sz, thresh)
@@ -923,12 +932,13 @@ class InteractiveDashboard:
                                                self.total_expenses,
                                                self.expense_title_var.get(), '#FF007F', font_sz, thresh)
 
-        self.fig_income.set_size_inches(size_inches, size_inches)
-        self.fig_expense.set_size_inches(size_inches, size_inches)
+        # FIXED: Pass separate rectangular inches dimensions to prevent layout squishing
+        self.fig_income.set_size_inches(size_inches_w, size_inches_h)
+        self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
 
         if self.canvas_inc and self.canvas_exp:
-            self.canvas_inc.get_tk_widget().configure(width=size_pixels, height=size_pixels)
-            self.canvas_exp.get_tk_widget().configure(width=size_pixels, height=size_pixels)
+            self.canvas_inc.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
+            self.canvas_exp.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
             self.canvas_inc.draw()
             self.canvas_exp.draw()
 

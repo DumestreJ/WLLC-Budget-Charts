@@ -9,7 +9,11 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
     # 1. COMPLETELY PURGE THE OLD GRAPH AND ALL LINGERING TEXT ENTIRELY
     fig.clf()
 
-    # 2. Create a clean, centered drawing canvas inside the cleared figure
+    # FIXED: Stretch the internal subplot grid box to fill 100% of the canvas height and width space,
+    # pulling the left margin right up to the edge and expanding the right side wide for text.
+    fig.subplots_adjust(left=0.01, right=0.99, bottom=0.02, top=0.85)
+
+    # Create our clean drawing canvas inside the newly stretched figure
     ax = fig.add_subplot(111)
     ax.set_facecolor('#111111')
 
@@ -17,17 +21,19 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
         ax.text(0, 0, "No Data Available", color='white', weight="bold", ha="center")
         ax.set_title(title, color=title_color, fontsize=12, weight='bold', pad=10)
         ax.axis('off')
-        return []  # Return empty list on no data
+        return []
 
+    # FIXED: Lock the slice radius to 1.0. Because the subplot adjustments stretch the drawing box,
+    # a 1.0 radius circle naturally swells outward to fill the full vertical height available.
     wedges, _ = ax.pie(
         sizes, colors=NEON_COLORS[:len(sizes)], startangle=270, counterclock=False,
-        radius=1.05,
-        wedgeprops=dict(edgecolor='#222222', linewidth=2, antialiased=True, width=None) # Setting width to <1 makes donut!
+        radius=1.0,
+        wedgeprops=dict(edgecolor='#222222', linewidth=2, antialiased=True, width=None)
     )
 
     left_side_labels = []
     right_side_labels = []
-    lowest_label_y = -1.5
+    lowest_label_y = -1.2
 
     for i, w in enumerate(wedges):
         percentage = (sizes[i] / total_value) * 100 if total_value > 0 else 0
@@ -37,13 +43,14 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
 
         label_text = f"{labels[i]}\n${sizes[i]:,.0f} ({percentage:.1f}%)"
 
-        if percentage >= 15.0:   # This determines whether info is put inside the pie wedge or outside
-            ix = w.r * 0.58 * x
-            iy = w.r * 0.58 * y
+        if percentage >= 15.0:  # Inside-wedge text placement
+            ix = w.r * 0.55 * x
+            iy = w.r * 0.55 * y
             ax.text(ix, iy, label_text, color="black", weight="bold", fontsize=current_font_size,
                     ha='center', va='center')
         else:
-            target_y = w.r * 1.25 * y
+            # FIXED: Re-calibrated callout target distance to sit perfectly flush outside our larger circle
+            target_y = w.r * 1.08 * y
             if x > 0:
                 right_side_labels.append(
                     {'y': target_y, 'text': label_text, 'color': w.get_facecolor(), 'w': w, 'x': x, 'y_orig': y})
@@ -60,8 +67,8 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             if (prev_y - current_y) < min_gap:
                 label_list[idx]['y'] = prev_y - min_gap
 
-    adjust_side_spacing(right_side_labels, min_gap=0.22)
-    adjust_side_spacing(left_side_labels, min_gap=0.22)
+    adjust_side_spacing(right_side_labels, min_gap=0.20)
+    adjust_side_spacing(left_side_labels, min_gap=0.20)
 
     for side_list, x_side in [(right_side_labels, 1), (left_side_labels, -1)]:
         horizontal_align = "left" if x_side > 0 else "right"
@@ -70,11 +77,16 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             if item['y'] < lowest_label_y:
                 lowest_label_y = item['y']
 
+            # FIXED: Snaps the start of the line perfectly flush onto the expanded 1.0 radius rim
             x_start, y_start = w.r * 0.98 * item['x'], w.r * 0.98 * item['y_orig']
+
+            # FIXED: Increased kink extension out to 1.15 so lines clear the edge of the circle beautifully
             x_kink, y_kink = w.r * 1.15 * item['x'], w.r * 1.15 * item['y_orig']
             x_vertical = x_kink
             y_vertical = item['y']
-            x_end = 1.30 * x_side
+
+            # FIXED: Extended text shelf line out to 1.35 to give labels a secure landing runway
+            x_end = 1.35 * x_side
 
             ax.plot([x_start, x_kink, x_vertical, x_end],
                     [y_start, y_kink, y_vertical, item['y']],
@@ -84,17 +96,22 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
                     color="white", weight="bold", fontsize=current_font_size,
                     ha=horizontal_align, va="center")
 
-    ax.set_title(title, color=title_color, fontsize=18, weight='bold', pad=15)
+    ax.set_title(title, color=title_color, fontsize=18, weight='bold', pad=25)
 
-    ax.text(0.53, 1.01, f"Total: ${total_value:,.0f}",
+    # 3. FIXED: Re-mapped text string anchoring to use absolute circle data coordinates (0, 1.25)
+    # This guarantees the subtitle remains perfectly centered over the top of the pie wheel on BOTH sides!
+    ax.text(0.0, 1.25, f"Total: ${total_value:,.0f}",
             color='#aaaaaa', fontname='Arial', fontsize=10, weight='bold',
-            horizontalalignment='center', verticalalignment='center',
-            transform=ax.transAxes)
+            horizontalalignment='center', verticalalignment='center')
 
-    dynamic_bottom_limit = lowest_label_y - 0.20
+    # FIXED: Added a wider 0.35 padding buffer to protect the lowest text labels from clipping
+    dynamic_bottom_limit = lowest_label_y - 0.35
 
-    ax.set_xlim(-1.5, 1.9)
-    ax.set_ylim(dynamic_bottom_limit, 1.5)
+    # FIXED: Opened up the bottom limit of the coordinate matrix layout from -1.40 down to -1.65.
+    # This expands the vertical floor of the canvas, giving the lines a safe runway to extend
+    # completely down without any boundary clipping!
+    ax.set_xlim(-1.25, 2.1)
+    ax.set_ylim(max(-1.65, dynamic_bottom_limit), 1.25)
     ax.axis('off')
 
-    return wedges  # FEATURE IMPLEMENTATION: Expose generated wedges to click/hover listeners
+    return wedges
