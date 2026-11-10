@@ -5,6 +5,7 @@ from tkinter import messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from Chart_Engine import *  # Imports cleanly from your support module
 from budget_importer import import_excel_budget
+import csv
 
 class InteractiveDashboard:
     def __init__(self, window):
@@ -53,6 +54,9 @@ class InteractiveDashboard:
         # FEATURE IMPLEMENTATION: Single shared floating tooltip window tracker
         self.tooltip = None
 
+        # Seed your active session save handle to point to the executable's current working directory by default
+        self.last_import_dir = os.getcwd()
+
         self.create_left_panel()
         self.create_right_panel()
         self.load_initial_data()
@@ -90,7 +94,7 @@ class InteractiveDashboard:
         scroll_outer_frame = tk.Frame(self.left_panel, bg='#111111')
         scroll_outer_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(10, 5))
 
-        # FIXED: Explicitly set width=180 to guarantee it fits inside your 220px default startup sash
+        # Explicitly set width=180 to guarantee it fits inside your 220px default startup sash
         self.scroll_canvas = tk.Canvas(scroll_outer_frame, bg='#111111', bd=0, highlightthickness=0, width=180)
         self.scroll_canvas.pack(side="left", fill="both", expand=True)
 
@@ -174,7 +178,6 @@ class InteractiveDashboard:
         actions_frame = tk.Frame(self.left_panel, bg='#111111')
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
 
-        from budget_importer import import_excel_budget
         btn_import = tk.Button(actions_frame, text="Import Spreadsheet Budget", command=lambda: import_excel_budget(self),
                                bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
@@ -185,10 +188,10 @@ class InteractiveDashboard:
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_update.pack(fill="x", pady=4)
 
-        btn_save = tk.Button(actions_frame, text="Update CSV File", command=self.save_to_csv,
-                             bg='#FFaa00', fg='black', activebackground='#ffcc66', activeforeground='black',
-                             font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
-        btn_save.pack(fill="x", pady=4)
+        self.btn_save = tk.Button(actions_frame, text="Create CSV File", command=self.save_to_csv,
+                                  bg='#FFaa00', fg='black', activebackground='#ffcc66', activeforeground='black',
+                                  font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
+        self.btn_save.pack(fill="x", pady=4)
 
         btn_export_charts = tk.Button(actions_frame, text="Save Charts to Desktop", command=self.save_charts,
                                       bg='#00FF66', fg='black', activebackground='#66ff99', activeforeground='black',
@@ -252,9 +255,7 @@ class InteractiveDashboard:
         self.canvas_inc.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Income"))
         self.canvas_exp.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Expense"))
 
-        # =========================================================================
         # UNIFIED CLICK MULTIPLEXER (PRESERVES ORIGINAL INTERACTIVE ACTIONS)
-        # =========================================================================
         def unified_click_handler(mpl_event, chart_type):
             if not mpl_event.inaxes:
                 return
@@ -283,7 +284,6 @@ class InteractiveDashboard:
         # Register our single-runway click manager to the vector canvas press streams
         self.canvas_inc.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Income"))
         self.canvas_exp.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Expense"))
-        # =========================================================================
 
     def clean_label_text(self, text):
         """FEATURE IMPLEMENTATION: Dynamically strips account codes and separators on the fly
@@ -345,9 +345,7 @@ class InteractiveDashboard:
             lbl_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: lbl_entry.focus_set()))
         val_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: val_entry.focus_set()))
 
-        # =========================================================================
         # CONTEXT MENU OPERATIONS
-        # =========================================================================
         if not is_total:
             context_menu = tk.Menu(self.root, tearoff=0, bg='#2a2a2a', fg='white',
                                    activebackground='#00F0FF', activeforeground='black', bd=1)
@@ -386,13 +384,11 @@ class InteractiveDashboard:
                 widget.bind("<Button-3>", show_popup)
                 widget.bind("<Button-2>", show_popup)
 
-        # =========================================================================
-
         def sync_category_name_change(*args):
             if hasattr(self, 'is_updating_display') and self.is_updating_display:
                 return
             new_name = lbl_var.get().strip()
-            # FIXED: Target list index 0 explicitly to resolve scoping rules
+            # Target list index 0 explicitly to resolve scoping rules
             old_name = old_label_holder[0]
 
             if old_name and new_name and old_name != new_name:
@@ -408,7 +404,7 @@ class InteractiveDashboard:
                             prefix_match and not re.match(r'^\d+', new_name)) else new_name
                 if lbl_entry.raw_data_key in self.subcategories:
                     self.subcategories[true_new_key] = self.subcategories.pop(lbl_entry.raw_data_key)
-                # FIXED: Overwrite list index 0 element target safely
+                # Overwrite list index 0 element target safely
                 old_label_holder[0] = new_name
                 lbl_entry.raw_data_key = true_new_key
             self.process_inputs(is_live=True)
@@ -497,9 +493,7 @@ class InteractiveDashboard:
                 pad_len = col_width - len(lbl_str)
                 body_text += f"{lbl_str}{' ' * max(1, pad_len)}{rem_str}"
 
-                # =========================================================================
-                # FIXED: PROFILE-AWARE DYNAMIC USER INVITATION TEXT GENERATOR
-                # =========================================================================
+                # PROFILE-AWARE DYNAMIC USER INVITATION TEXT GENERATOR
                 if current_profile == "Public Mode (Hide Salaries)" and is_sensitive:
                     # Editing is locked for sensitive rows in public mode, only offer zoom
                     action_prompt = "[Right-Click to Zoom Entry Ledger]"
@@ -509,7 +503,6 @@ class InteractiveDashboard:
 
                 tooltip_text = body_text + "\n\n" + action_prompt
                 border_color = '#00F0FF' if chart_type == "Income" else '#FF007F'
-                # =========================================================================
 
                 self.tooltip = tk.Toplevel(self.root)
                 self.tooltip.wm_overrideredirect(True)
@@ -556,9 +549,7 @@ class InteractiveDashboard:
         if not event.inaxes or not event.dblclick:
             return
 
-        # =========================================================================
         # PUBLIC MODE INTERACTIVE CONFIDENTIALITY GUARD
-        # =========================================================================
         current_profile = self.view_profile_var.get()
         if current_profile == "Public Mode (Hide Salaries)":
             wedges = self.income_wedges if chart_type == "Income" else self.expense_wedges
@@ -590,18 +581,15 @@ class InteractiveDashboard:
 
     def open_ledger_modal(self, category_name, expected_total):
         """Creates scrollable Treeview modal centered cleanly over chart area with predictive selection states.
-
-        FIXED: Automatically resolves missing account number prefixes to prevent data layout collapse.
+           Automatically resolves missing account number prefixes to prevent data layout collapse.
         """
-        # =========================================================================
-        # FIXED: DICTIONARY KEY ACCOUNT NUMBER ALIGNMENT ENGINE
-        # =========================================================================
+
+        # DICTIONARY KEY ACCOUNT NUMBER ALIGNMENT ENGINE
         # Scan your data dictionary keys to find the true raw storage key match
         for raw_key in self.subcategories.keys():
             if category_name == raw_key or category_name == self.clean_label_text(raw_key):
                 category_name = raw_key  # Overwrite with true raw key (e.g., "4101 · Giving")
                 break
-        # =========================================================================
 
         modal = tk.Toplevel(self.root)
         modal.title(f"Subcategory Ledger: {self.clean_label_text(category_name)}")
@@ -847,9 +835,7 @@ class InteractiveDashboard:
                  font=('Arial', 16, 'bold')).pack(fill="x", pady=5)
         tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(fill="x", padx=50, pady=(2, 10))
 
-        # =========================================================================
         # FEATURE IMPLEMENTATION: ADAPTIVE HIDDEN DUAL-AXIS SCROLL VIEWPORT
-        # =========================================================================
         # Core layout wrapper frame containing the canvas and adaptive scroll tracks
         viewport_frame = tk.Frame(self.zoom_modal, bg='#161616')
         viewport_frame.pack(fill="both", expand=True, padx=40, pady=5)
@@ -919,8 +905,6 @@ class InteractiveDashboard:
         zoom_canvas.bind_all("<Button-4>", handle_modal_mouse_wheel)
         zoom_canvas.bind_all("<Button-5>", handle_modal_mouse_wheel)
 
-        # =========================================================================
-
         # Dismount Closure Release Routines
         def close_modal(*args):
             if hasattr(self, 'zoom_modal') and self.zoom_modal:
@@ -940,21 +924,35 @@ class InteractiveDashboard:
         self.zoom_modal.bind("<Escape>", close_modal)
 
     def load_initial_data(self):
-        """Loads budget dataset configurations from the Desktop CSV or defaults to
-        hardcoded allocations, utilizing the permanent layout containers from create_left_panel.
+        """Loads budget dataset configurations from the Current Working Directory (CWD),
+        falling back to the Desktop, or defaults to hardcoded allocations seamlessly.
         """
-        import os
-        import csv
+        # -----------------------------------------------------------------
+        # SILENT DIRECTORY DISPATCHER PATHS (PREVENTS EARLY CRASHES)
+        # -----------------------------------------------------------------
+        exec_dir = os.getcwd()
+        cwd_csv_filename = os.path.join(exec_dir, "budget_data.csv")
+
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-        csv_filename = os.path.join(desktop_dir, "budget_data.csv")
+        desktop_csv_filename = os.path.join(desktop_dir, "budget_data.csv")
 
-        # Removed the redundant self.inc_frame/self.exp_frame creation and packing lines
-        # and deleted the duplicate tk.Label text headers that were doubling up on your layout viewport.
-
-        if not os.path.exists(csv_filename):
-            messagebox.showwarning("File Not Found", "Budget file not found on Desktop. Loading hardcoded defaults.")
+        # Check which file takes precedence without interrupting thread initialization
+        if os.path.exists(cwd_csv_filename):
+            csv_filename = cwd_csv_filename
+            self.last_import_dir = exec_dir
+        elif os.path.exists(desktop_csv_filename):
+            csv_filename = desktop_csv_filename
+            self.last_import_dir = desktop_dir
+        else:
             self.load_hardcoded_defaults()
+            # Ensure the text safely locks to "Create" if both paths come up empty
+            if hasattr(self, 'btn_save') and self.btn_save:
+                self.btn_save.config(text="Create CSV File")
             return
+
+        # If the file path check succeeds and we parse rows, ensure the text reads "Update"
+        if hasattr(self, 'btn_save') and self.btn_save:
+            self.btn_save.config(text="Update CSV File")
 
         try:
             with open(csv_filename, mode='r', newline='', encoding='utf-8-sig') as f:
@@ -1042,7 +1040,7 @@ class InteractiveDashboard:
         # Attach real-time modification listener traces and force rendering update pass
         self.income_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
         self.expense_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
-        self.process_inputs()
+        self.process_inputs(is_live=False)
 
     def process_inputs(self, is_live=False):
         if hasattr(self, 'is_updating') and self.is_updating:
@@ -1084,7 +1082,7 @@ class InteractiveDashboard:
                         inc_candidates.append((lbl if lbl else "New Income", val))
 
             inc_candidates.sort(key=lambda x: x[1], reverse=True)
-            # FIXED: Extract tuple numeric values index x[1] for proper mathematical summation
+            # Extract tuple numeric values index x[1] for proper mathematical summation
             other_inc = (self.total_income - sum(x[1] for x in inc_candidates)) + other_inc_accumulator
 
             self.income_labels = [self.clean_label_text(x[0]) for x in inc_candidates]
@@ -1115,7 +1113,7 @@ class InteractiveDashboard:
                         exp_candidates.append((lbl if lbl else "New Expense", val))
 
             exp_candidates.sort(key=lambda x: x[1], reverse=True)
-            # FIXED: Extract tuple numeric values index x[1] for proper mathematical summation
+            # Extract tuple numeric values index x[1] for proper mathematical summation
             other_exp = (self.total_expenses - sum(x[1] for x in exp_candidates)) + other_exp_accumulator
 
             self.expense_labels = [self.clean_label_text(x[0]) for x in exp_candidates]
@@ -1199,7 +1197,7 @@ class InteractiveDashboard:
                                                self.total_expenses,
                                                self.expense_title_var.get(), '#FF007F', font_sz, thresh)
 
-        # FIXED: Pass separate rectangular inches dimensions to prevent layout squishing
+        # Pass separate rectangular inches dimensions to prevent layout squishing
         self.fig_income.set_size_inches(size_inches_w, size_inches_h)
         self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
 
@@ -1228,14 +1226,21 @@ class InteractiveDashboard:
             messagebox.showerror("Error", f"Could not save charts:\n{str(e)}")
 
     def save_to_csv(self):
-        """FEATURE IMPLEMENTATION: Secure saving routine that guarantees data alignment
-
-        by reading string variables directly from the master model input tracking arrays.
+        """Secure saving routine that routes dataset files directly into the last
+        imported Excel directory source folder, falling back to the Desktop natively.
         """
-        import csv
-        import os
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-        csv_filename = os.path.join(desktop_dir, "budget_data.csv")
+
+        # DYNAMIC PATH ROUTING ENGINE
+        # Check if an Excel directory or startup directory has been registered during this session
+        if hasattr(self, 'last_import_dir') and self.last_import_dir:
+            target_dir = self.last_import_dir
+            location_description = f"Current Session Target Folder:\n{target_dir}"
+        else:
+            # Fall back directly to the running executable's parent application folder
+            target_dir = os.getcwd()
+            location_description = f"Local Application Executable Folder:\n{target_dir}"
+
+        csv_filename = os.path.join(target_dir, "budget_data.csv")
 
         try:
             with open(csv_filename, mode='w', newline='', encoding='utf-8-sig') as f:
@@ -1289,7 +1294,13 @@ class InteractiveDashboard:
                         compound_key = f"{true_parent_key}::{sub_lbl}"
                         writer.writerow({'Type': 'Subcategory', 'Category': compound_key, 'Amount': float(sub_val), 'Title text': ''})
 
-            messagebox.showinfo("Success", "Budget dataset modifications archived safely to Desktop!")
+            # Dynamically flip the label to "Update" right as the file writes successfully
+            if hasattr(self, 'btn_save') and self.btn_save:
+                self.btn_save.config(text="Update CSV File")
+
+            # Inform the user explicitly of the folder location where the file compiled
+            messagebox.showinfo("Success",
+                                f"Budget dataset modifications saved successfully to:\n\n{location_description}\n\nFile Name: budget_data.csv")
         except Exception as e:
             messagebox.showerror("Save Error", f"Could not compile local file storage paths:\n{str(e)}")
 

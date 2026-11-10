@@ -17,6 +17,9 @@ def import_excel_budget(app):
     if not file_selected:
         return
 
+    # CAPTURE ACTIVE IMPORT DIRECTORY SOURCE LOCATION
+    app.last_import_dir = os.path.dirname(file_selected)
+
     try:
         wb = load_workbook(file_selected, data_only=True)
         sheets = wb.sheetnames
