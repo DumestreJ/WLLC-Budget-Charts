@@ -248,11 +248,42 @@ class InteractiveDashboard:
         # Re-trigger calculation cycles to update tooltip restrictions instantly on toggle
         profile_combo.bind("<<ComboboxSelected>>", lambda e: self.process_inputs())
 
-        # FEATURE IMPLEMENTATION: Connect interactive canvas listeners for clicks and hovers
+        # Connect interactive canvas listeners for hovers
         self.canvas_inc.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Income"))
-        self.canvas_inc.mpl_connect("button_press_event", lambda e: self.handle_click(e, "Income"))
         self.canvas_exp.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Expense"))
-        self.canvas_exp.mpl_connect("button_press_event", lambda e: self.handle_click(e, "Expense"))
+
+        # =========================================================================
+        # UNIFIED CLICK MULTIPLEXER (PRESERVES ORIGINAL INTERACTIVE ACTIONS)
+        # =========================================================================
+        def unified_click_handler(mpl_event, chart_type):
+            if not mpl_event.inaxes:
+                return
+
+            # Instantly ignore all clicks if the profile is set to silence mode
+            if self.view_profile_var.get() == "Silence All Tooltips":
+                return
+
+            # TRACK A: RIGHT-CLICK DISPATCHER (SANCTUARY ZOOM PRESENTATION VIEW)
+            # Checks for mouse button 3 and ensures no other presentation window is active
+            if mpl_event.button == 3 and not (hasattr(self, 'modal_active') and self.modal_active):
+                wedges = self.income_wedges if chart_type == "Income" else self.expense_wedges
+                labels = self.income_labels if chart_type == "Income" else self.expense_labels
+
+                for idx, wedge in enumerate(wedges):
+                    contained, _ = wedge.contains(mpl_event)
+                    if contained and idx < len(labels):
+                        self.zoom_modal_dispatcher(chart_type, idx, mpl_event)
+                        return
+
+            # TRACK B: LEFT-CLICK DISPATCHER (YOUR ORIGINAL INTERACTIVE MECHANICS)
+            # Pass all left-clicks straight down to your original un-edited handler method
+            elif mpl_event.button == 1:
+                self.handle_click(mpl_event, chart_type)
+
+        # Register our single-runway click manager to the vector canvas press streams
+        self.canvas_inc.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Income"))
+        self.canvas_exp.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Expense"))
+        # =========================================================================
 
     def clean_label_text(self, text):
         """FEATURE IMPLEMENTATION: Dynamically strips account codes and separators on the fly
@@ -389,9 +420,12 @@ class InteractiveDashboard:
 
     def handle_hover(self, event, chart_type):
         """Manages hovering mechanics, secures item details in public modes,
-
         and preserves parent category math balance readouts perfectly.
         """
+        # STRUCTURAL GUARD: Stand down instantly if a sanctuary zoom window is active
+        if hasattr(self, 'modal_active') and self.modal_active:
+            return
+
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
@@ -455,17 +489,27 @@ class InteractiveDashboard:
                     for sub_lbl, sub_val in cleaned_subs:
                         val_str = f"${int(sub_val)}"
                         pad_len = col_width - len(sub_lbl)
-                        pad_space = " " * max(1, pad_len)
-                        body_text += f"{sub_lbl}{pad_space}{val_str}\n"
+                        body_text += f"{sub_lbl}{' ' * max(1, pad_len)}{val_str}\n"
 
                 # If item details are hidden, display the full Category Total instead of an "Other Balance" remainder
                 rem_str = f"${int(remainder if show_breakdown_rows else expected_total)}"
                 lbl_str = "Other Balance" if show_breakdown_rows else "Category Total"
                 pad_len = col_width - len(lbl_str)
-                pad_space = " " * max(1, pad_len)
-                body_text += f"{lbl_str}{pad_space}{rem_str}"
+                body_text += f"{lbl_str}{' ' * max(1, pad_len)}{rem_str}"
 
+                # =========================================================================
+                # FIXED: PROFILE-AWARE DYNAMIC USER INVITATION TEXT GENERATOR
+                # =========================================================================
+                if current_profile == "Public Mode (Hide Salaries)" and is_sensitive:
+                    # Editing is locked for sensitive rows in public mode, only offer zoom
+                    action_prompt = "[Right-Click to Zoom Entry Ledger]"
+                else:
+                    # Offer full editing and zoom mechanics for standard workflows
+                    action_prompt = "[Left Double-Click to Edit | Right-Click to Zoom]"
+
+                tooltip_text = body_text + "\n\n" + action_prompt
                 border_color = '#00F0FF' if chart_type == "Income" else '#FF007F'
+                # =========================================================================
 
                 self.tooltip = tk.Toplevel(self.root)
                 self.tooltip.wm_overrideredirect(True)
@@ -476,9 +520,18 @@ class InteractiveDashboard:
                                       fg='#1a1a1a', font=('Arial', 10, 'bold'), padx=10)
                 header_lbl.pack(fill="x", pady=(8, 4))
 
-                body_lbl = tk.Label(self.tooltip, text=body_text, bg='#e0e0e0', fg='#1a1a1a',
+                body_lbl = tk.Label(self.tooltip, text=tooltip_text, bg='#e0e0e0', fg='#1a1a1a',
                                     font=('Consolas', 9, 'bold'), justify="left", padx=10)
                 body_lbl.pack(fill="x", pady=(0, 8))
+
+                # Safe fallbacks for right-clicking the floating card components directly
+                def force_popup_trigger(e):
+                    self.trigger_sanctuary_zoom(display_cat_name, border_color, max_lbl_len, show_breakdown_rows,
+                                                cleaned_subs, remainder, expected_total)
+
+                for component in [header_lbl, body_lbl]:
+                    component.bind("<Button-3>", force_popup_trigger)
+                    component.bind("<Button-2>", force_popup_trigger)
 
                 self.tooltip.update_idletasks()
                 tip_w = self.tooltip.winfo_reqwidth()
@@ -503,6 +556,27 @@ class InteractiveDashboard:
         if not event.inaxes or not event.dblclick:
             return
 
+        # =========================================================================
+        # PUBLIC MODE INTERACTIVE CONFIDENTIALITY GUARD
+        # =========================================================================
+        current_profile = self.view_profile_var.get()
+        if current_profile == "Public Mode (Hide Salaries)":
+            wedges = self.income_wedges if chart_type == "Income" else self.expense_wedges
+            labels = self.income_labels if chart_type == "Income" else self.expense_labels
+
+            for i, w in enumerate(wedges):
+                if i >= len(labels): continue
+                contained, _ = w.contains(event)
+                if contained:
+                    clicked_label = labels[i]
+
+                    # Intercept click if category key contains sensitive compensation tokens
+                    is_sensitive = any(
+                        token in clicked_label.upper() for token in ["SALARY", "BENEFIT", "CLERGY", "LAY MIN"])
+                    if is_sensitive:
+                        # Silently return and block the editor modal window from ever opening
+                        return
+
         wedges = self.income_wedges if chart_type == "Income" else self.expense_wedges
         labels = self.income_labels if chart_type == "Income" else self.expense_labels
         sizes = self.income_sizes if chart_type == "Income" else self.expense_sizes
@@ -515,9 +589,22 @@ class InteractiveDashboard:
                 break
 
     def open_ledger_modal(self, category_name, expected_total):
-        """Creates scrollable Treeview modal centered cleanly over chart area with predictive selection states."""
+        """Creates scrollable Treeview modal centered cleanly over chart area with predictive selection states.
+
+        FIXED: Automatically resolves missing account number prefixes to prevent data layout collapse.
+        """
+        # =========================================================================
+        # FIXED: DICTIONARY KEY ACCOUNT NUMBER ALIGNMENT ENGINE
+        # =========================================================================
+        # Scan your data dictionary keys to find the true raw storage key match
+        for raw_key in self.subcategories.keys():
+            if category_name == raw_key or category_name == self.clean_label_text(raw_key):
+                category_name = raw_key  # Overwrite with true raw key (e.g., "4101 · Giving")
+                break
+        # =========================================================================
+
         modal = tk.Toplevel(self.root)
-        modal.title(f"Subcategory Ledger: {category_name}")
+        modal.title(f"Subcategory Ledger: {self.clean_label_text(category_name)}")
         modal.configure(bg='#1e1e1e')
         modal.geometry("450x380")
         modal.transient(self.root)
@@ -671,6 +758,186 @@ class InteractiveDashboard:
         remove_btn.pack(side="left", padx=5)
 
         refresh_tree_view()
+
+    def zoom_modal_dispatcher(self, chart_type, index, mpl_event):
+        """Processes right-click vector metadata slices, extracting details cleanly
+        without collisions before launching the projection frame layout.
+        """
+        labels = self.income_labels if chart_type == "Income" else self.expense_labels
+        sizes = self.income_sizes if chart_type == "Income" else self.expense_sizes
+        hovered_label = labels[index]
+        expected_total = sizes[index]
+
+        sub_list = []
+        display_cat_name = hovered_label
+        raw_category_key = hovered_label
+        for raw_key, items in self.subcategories.items():
+            if hovered_label == raw_key or hovered_label == self.clean_label_text(raw_key):
+                sub_list = items
+                display_cat_name = self.clean_label_text(raw_key)
+                raw_category_key = raw_key
+                break
+
+        is_sensitive = any(token in raw_category_key.upper() for token in ["SALARY", "BENEFIT", "CLERGY", "LAY MIN"])
+        show_breakdown_rows = not (self.view_profile_var.get() == "Public Mode (Hide Salaries)" and is_sensitive)
+        total_entered = sum(v for _, v in sub_list)
+        remainder = expected_total - total_entered
+
+        max_lbl_len = 13
+        cleaned_subs = []
+        if sub_list:
+            for sub_lbl, sub_val in sub_list:
+                c_lbl = self.clean_label_text(sub_lbl)
+                cleaned_subs.append((c_lbl, sub_val))
+                if show_breakdown_rows: max_lbl_len = max(max_lbl_len, len(c_lbl))
+
+        border_color = '#00F0FF' if chart_type == "Income" else '#FF007F'
+        self.trigger_sanctuary_zoom(display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs,
+                                    remainder, expected_total)
+
+    def trigger_sanctuary_zoom(self, display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs,
+                               remainder, expected_total):
+        """Launches a single centralized dark modal view container for sanctuary projection screens,
+        utilizing an adaptive dual-axis scroll viewport that remains invisible until content overflows bounds.
+        """
+        if hasattr(self, 'modal_active') and self.modal_active:
+            return
+
+        self.modal_active = True
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+        self.zoom_modal = tk.Toplevel(self.root)
+        self.zoom_modal.configure(bg='#161616', highlightbackground=border_color, highlightcolor=border_color,
+                                  highlightthickness=2, bd=0)
+        self.zoom_modal.wm_overrideredirect(True)
+
+        app_w, app_h = self.root.winfo_width(), self.root.winfo_height()
+        app_x, app_y = self.root.winfo_x(), self.root.winfo_y()
+
+        modal_h = int(app_h * 0.80)
+        modal_w = int(app_w * 0.45)
+        if modal_w < 480: modal_w = 480
+
+        self.zoom_modal.geometry(
+            f"{modal_w}x{modal_h}+{app_x + (app_w // 2) - (modal_w // 2)}+{app_y + (app_h // 2) - (modal_h // 2)}")
+
+        # High-Contrast Dot-Leader Alignment Matrix Calculations
+        zoom_width = max_lbl_len + 12
+        zoom_body_text = ""
+
+        if show_breakdown_rows and cleaned_subs:
+            for s_lbl, s_val in cleaned_subs:
+                v_str = f"${int(s_val):,}"
+                dots_needed = zoom_width - len(s_lbl) - len(v_str)
+                dot_leader = " ." * (dots_needed // 2) + (" " if dots_needed % 2 != 0 else "")
+                zoom_body_text += f" {s_lbl}{dot_leader}{v_str}\n"
+
+        z_rem_str = f"${int(remainder if show_breakdown_rows else expected_total):,}"
+        z_lbl_str = "Other Balance" if show_breakdown_rows else "Category Total"
+
+        dots_needed = zoom_width - len(z_lbl_str) - len(z_rem_str)
+        z_dot_leader = " ." * (dots_needed // 2) + (" " if dots_needed % 2 != 0 else "")
+        zoom_body_text += f" {z_lbl_str}{z_dot_leader}{z_rem_str}"
+
+        # Top Margin Padding & Structural Window Headers
+        tk.Frame(self.zoom_modal, bg='#161616', height=25).pack()
+        tk.Label(self.zoom_modal, text=f" {display_cat_name.upper()} LEDGER ", bg='#161616', fg='white',
+                 font=('Arial', 16, 'bold')).pack(fill="x", pady=5)
+        tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(fill="x", padx=50, pady=(2, 10))
+
+        # =========================================================================
+        # FEATURE IMPLEMENTATION: ADAPTIVE HIDDEN DUAL-AXIS SCROLL VIEWPORT
+        # =========================================================================
+        # Core layout wrapper frame containing the canvas and adaptive scroll tracks
+        viewport_frame = tk.Frame(self.zoom_modal, bg='#161616')
+        viewport_frame.pack(fill="both", expand=True, padx=40, pady=5)
+
+        zoom_canvas = tk.Canvas(viewport_frame, bg='#161616', bd=0, highlightthickness=0, yscrollincrement=10,
+                                xscrollincrement=10)
+
+        # Instantiate scrollbar hardware components safely linked to canvas matrix channels
+        h_scrollbar = tk.Scrollbar(viewport_frame, orient="horizontal", command=zoom_canvas.xview)
+        v_scrollbar = tk.Scrollbar(viewport_frame, orient="vertical", command=zoom_canvas.yview)
+        zoom_canvas.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
+
+        # Main inner container holding text blocks securely inside the viewport canvas
+        inner_content_frame = tk.Frame(zoom_canvas, bg='#161616')
+        canvas_win_id = zoom_canvas.create_window((0, 0), window=inner_content_frame, anchor="nw")
+
+        # High-Contrast Ledger Body Label (Consolas Bold 14pt)
+        m_body = tk.Label(inner_content_frame, text=zoom_body_text, bg='#161616', fg='#e0e0e0',
+                          font=('Consolas', 14, 'bold'), justify="left")
+        m_body.pack(fill="both", expand=True, padx=10, pady=10)
+
+        def configure_adaptive_viewports(event):
+            """Monitors content requirements dynamically, keeping scroll bars
+            completely hidden unless text fields overlap container canvas margins.
+            """
+            inner_content_frame.update_idletasks()
+            scroll_region = zoom_canvas.bbox("all")
+            zoom_canvas.configure(scrollregion=scroll_region)
+
+            canvas_w = zoom_canvas.winfo_width()
+            canvas_h = zoom_canvas.winfo_height()
+            content_w = inner_content_frame.winfo_reqwidth()
+            content_h = inner_content_frame.winfo_reqheight()
+
+            # Dynamic Horizontal Scrollbar Tracking
+            if content_w > canvas_w:
+                h_scrollbar.pack(side="bottom", fill="x")
+            else:
+                h_scrollbar.pack_forget()
+
+            # Dynamic Vertical Scrollbar Tracking
+            if content_h > canvas_h:
+                v_scrollbar.pack(side="right", fill="y")
+                zoom_canvas.pack(side="left", fill="both", expand=True)
+            else:
+                v_scrollbar.pack_forget()
+                zoom_canvas.pack(side="top", fill="both", expand=True)
+
+            # Symmetrical centering adjustments if content fits comfortably inside window bounds
+            if content_w < canvas_w:
+                x_offset = (canvas_w - content_w) // 2
+                zoom_canvas.coords(canvas_win_id, x_offset, 0)
+            else:
+                zoom_canvas.coords(canvas_win_id, 0, 0)
+
+        zoom_canvas.bind("<Configure>", configure_adaptive_viewports)
+        inner_content_frame.bind("<Configure>", configure_adaptive_viewports)
+
+        # Connect standard hardware mouse wheel gesture paths recursively into canvas channels
+        def handle_modal_mouse_wheel(event):
+            if event.num == 5 or event.delta < 0:
+                zoom_canvas.yview_scroll(1, "units")
+            elif event.num == 4 or event.delta > 0:
+                zoom_canvas.yview_scroll(-1, "units")
+
+        zoom_canvas.bind_all("<MouseWheel>", handle_modal_mouse_wheel)
+        zoom_canvas.bind_all("<Button-4>", handle_modal_mouse_wheel)
+        zoom_canvas.bind_all("<Button-5>", handle_modal_mouse_wheel)
+
+        # =========================================================================
+
+        # Dismount Closure Release Routines
+        def close_modal(*args):
+            if hasattr(self, 'zoom_modal') and self.zoom_modal:
+                self.zoom_modal.grab_release()
+                self.zoom_modal.destroy()
+                self.zoom_modal = None
+            self.modal_active = False
+
+        tk.Button(self.zoom_modal, text="[ Close Ledger View ]", command=close_modal,
+                  bg='#161616', fg='#aaaaaa', activebackground='#161616', activeforeground='white',
+                  font=('Arial', 12, 'bold'), bd=0, highlightthickness=0, cursor="hand2").pack(side="bottom", pady=25)
+
+        self.zoom_modal.update_idletasks()
+        self.zoom_modal.transient(self.root)
+        self.zoom_modal.grab_set()
+        self.zoom_modal.focus_force()
+        self.zoom_modal.bind("<Escape>", close_modal)
 
     def load_initial_data(self):
         """Loads budget dataset configurations from the Desktop CSV or defaults to
