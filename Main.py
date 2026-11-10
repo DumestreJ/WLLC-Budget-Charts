@@ -80,19 +80,17 @@ class InteractiveDashboard:
         self.on_resize(forced=True)
 
     def create_left_panel(self):
-        """Creates a scrollable left panel, forcing a narrow canvas width constraint
-
-        to guarantee the right-hand dark scrollbar is fully visible on application startup.
+        """Creates a dynamic scrollable left panel that hugs its content height on tall screens,
+        keeping the Net Position summary immediately beneath the Income/Expense lists.
         """
         # Hook directly back into your stable horizontal sliding sash paned container
         self.left_panel = tk.Frame(self.paned_window, bg='#111111')
         self.paned_window.add(self.left_panel)
 
-        # ---------------------------------------------------------------------
-        # ZONE 1: THE SCROLLABLE VIEWPORT CANVAS DECK (TOP AREA)
-        # ---------------------------------------------------------------------
+        # ZONE 1: THE DYNAMIC SCROLLABLE VIEWPORT CANVAS DECK (TOP AREA)
+        # This frame shrinks to wrap its content tightly
         scroll_outer_frame = tk.Frame(self.left_panel, bg='#111111')
-        scroll_outer_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(10, 5))
+        scroll_outer_frame.pack(side="top", fill="x", expand=False, padx=5, pady=(10, 5))
 
         # Explicitly set width=180 to guarantee it fits inside your 220px default startup sash
         self.scroll_canvas = tk.Canvas(scroll_outer_frame, bg='#111111', bd=0, highlightthickness=0, width=180)
@@ -110,16 +108,41 @@ class InteractiveDashboard:
                         lightcolor="#2a2a2a",
                         darkcolor="#2a2a2a")
 
-        v_scrollbar = ttk.Scrollbar(scroll_outer_frame, orient="vertical", command=self.scroll_canvas.yview, style="Dark.Vertical.TScrollbar")
-        v_scrollbar.pack(side="right", fill="y")
+        v_scrollbar = ttk.Scrollbar(scroll_outer_frame, orient="vertical", command=self.scroll_canvas.yview,
+                                    style="Dark.Vertical.TScrollbar")
         self.scroll_canvas.configure(yscrollcommand=v_scrollbar.set)
 
         self.scrollable_inner_frame = tk.Frame(self.scroll_canvas, bg='#111111')
-        self.canvas_window_id = self.scroll_canvas.create_window((0, 0), window=self.scrollable_inner_frame, anchor="nw")
+        self.canvas_window_id = self.scroll_canvas.create_window((0, 0), window=self.scrollable_inner_frame,
+                                                                 anchor="nw")
 
-        def configure_scroll_region(event):
+        # Dynamic height & scrollbar visibility manager
+        def sync_left_panel_layout(event=None):
             self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all"))
-        self.scrollable_inner_frame.bind("<Configure>", configure_scroll_region)
+
+            panel_h = self.left_panel.winfo_height()
+            if panel_h < 50:
+                return  # Wait until window finishes initial draw
+
+            content_h = self.scrollable_inner_frame.winfo_reqheight()
+
+            # Reserve vertical room for Net Summary (~55px) + 4 Action Buttons (~195px) + Padding (~30px)
+            reserved_bottom_h = 280
+            max_canvas_h = max(100, panel_h - reserved_bottom_h)
+
+            if content_h <= max_canvas_h:
+                # Tall screen: Hug the exact content height and hide the scrollbar
+                self.scroll_canvas.configure(height=content_h)
+                v_scrollbar.pack_forget()
+                self.scroll_canvas.yview_moveto(0)
+            else:
+                # Short screen or many rows: Cap canvas height and show the scrollbar
+                self.scroll_canvas.configure(height=max_canvas_h)
+                if not v_scrollbar.winfo_ismapped():
+                    v_scrollbar.pack(side="right", fill="y")
+
+        self.scrollable_inner_frame.bind("<Configure>", sync_left_panel_layout)
+        self.left_panel.bind("<Configure>", sync_left_panel_layout)
 
         def configure_canvas_width(event):
             # Dynamic updates adjust width cleanly when you manually drag the pane slider
@@ -127,10 +150,12 @@ class InteractiveDashboard:
         self.scroll_canvas.bind("<Configure>", configure_canvas_width)
 
         def handle_mouse_wheel(event):
-            if event.num == 5 or event.delta < 0:
-                self.scroll_canvas.yview_scroll(1, "units")
-            elif event.num == 4 or event.delta > 0:
-                self.scroll_canvas.yview_scroll(-1, "units")
+            # Only scroll if the content is taller than the visible canvas viewport
+            if self.scrollable_inner_frame.winfo_reqheight() > self.scroll_canvas.winfo_height():
+                if event.num == 5 or event.delta < 0:
+                    self.scroll_canvas.yview_scroll(1, "units")
+                elif event.num == 4 or event.delta > 0:
+                    self.scroll_canvas.yview_scroll(-1, "units")
 
         self.scroll_canvas.bind_all("<MouseWheel>", handle_mouse_wheel)
         self.scroll_canvas.bind_all("<Button-4>", handle_mouse_wheel)
@@ -143,20 +168,20 @@ class InteractiveDashboard:
         self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
         self.exp_frame.pack(fill="x", expand=True, padx=(0, 15))
 
-        tk.Label(self.inc_frame, text="INCOME CONFIG", fg='#00F0FF', bg='#111111', font=('Arial', 9, 'bold')).pack(anchor="w", pady=(10, 4), padx=5)
+        tk.Label(self.inc_frame, text="INCOME CONFIG", fg='#00F0FF', bg='#111111', font=('Arial', 9, 'bold')).pack(
+            anchor="w", pady=(10, 4), padx=5)
         self.add_title_row(self.inc_frame, self.income_title_var, '#00F0FF')
         self.inc_title_row = self.inc_frame.pack_slaves()[-1]
 
-        tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg='#FF007F', bg='#111111', font=('Arial', 9, 'bold')).pack(anchor="w", pady=(20, 4), padx=5)
+        tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg='#FF007F', bg='#111111', font=('Arial', 9, 'bold')).pack(
+            anchor="w", pady=(20, 4), padx=5)
         self.add_title_row(self.exp_frame, self.expense_title_var, '#FF007F')
         self.exp_title_row = self.exp_frame.pack_slaves()[-1]
 
         self.inc_other_lbl = tk.Label(self.inc_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
         self.exp_other_lbl = tk.Label(self.exp_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
 
-        # ---------------------------------------------------------------------
-        # ZONE 2: THE NET POSITION SUMMARY BAR (MIDDLE ZONE)
-        # ---------------------------------------------------------------------
+        # ZONE 2: THE NET POSITION SUMMARY BAR (HUGS CONTENT IMMEDIATELY BELOW)
         summary_outer_frame = tk.Frame(self.left_panel, bg='#111111')
         summary_outer_frame.pack(side="top", fill="x", padx=15, pady=(5, 5))
 
@@ -178,7 +203,8 @@ class InteractiveDashboard:
         actions_frame = tk.Frame(self.left_panel, bg='#111111')
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
 
-        btn_import = tk.Button(actions_frame, text="Import Spreadsheet Budget", command=lambda: import_excel_budget(self),
+        btn_import = tk.Button(actions_frame, text="Import Spreadsheet Budget",
+                               command=lambda: import_excel_budget(self),
                                bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_import.pack(fill="x", pady=4)
