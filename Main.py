@@ -247,67 +247,78 @@ class InteractiveDashboard:
         # Global account number display configuration toggle variable
         self.show_acct_nums_var = tk.BooleanVar(value=False)
 
+        # Single horizontal control bar at the bottom to preserve 100% of vertical chart height
         config_frame = tk.Frame(self.main_frame, bg='#111111')
         config_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=10)
 
+        # 1. Left Control: Account Numbers Checkbox
         acct_chk = tk.Checkbutton(
-            config_frame, text="Show Account Numbers on Charts & Tooltips",
+            config_frame, text="Show Account Numbers",
             variable=self.show_acct_nums_var,
             bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
             activebackground='#111111', activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.process_inputs
         )
-        acct_chk.pack(anchor="w")
+        acct_chk.pack(side="left", padx=(0, 15))
 
-        # FEATURE IMPLEMENTATION: Define our tiered confidentiality profile tracker variable
+        # 2. Middle Control: Confidentiality Profile Dropdown
         self.view_profile_var = tk.StringVar(value="Bookkeeper Mode (Full Details)")
-
-        # Injects the drop-down selector container layer safely into your control deck
-        tk.Label(config_frame, text="Confidentiality View Profile:", bg='#111111', fg='#aaaaaa',
-                 font=('Arial', 9, 'bold')).pack(side="left", padx=(15, 5))
+        tk.Label(config_frame, text="View Profile:", bg='#111111', fg='#aaaaaa',
+                 font=('Arial', 9, 'bold')).pack(side="left", padx=(5, 5))
 
         from tkinter import ttk
         profile_combo = ttk.Combobox(
             config_frame, textvariable=self.view_profile_var,
             values=["Bookkeeper Mode (Full Details)", "Public Mode (Hide Salaries)", "Silence All Tooltips"],
-            state="readonly", font=('Arial', 9), width=24
+            state="readonly", font=('Arial', 9), width=23
         )
-        profile_combo.pack(side="left", padx=5)
-
-        # Re-trigger calculation cycles to update tooltip restrictions instantly on toggle
+        profile_combo.pack(side="left", padx=(0, 15))
         profile_combo.bind("<<ComboboxSelected>>", lambda e: self.process_inputs())
+
+        # 3. Right Control: Chart Visibility Radio Buttons (Both / Income / Expense)
+        self.chart_view_mode_var = tk.StringVar(value="Both")
+        radio_frame = tk.Frame(config_frame, bg='#111111')
+        radio_frame.pack(side="right")
+
+        tk.Label(radio_frame, text="Charts:", bg='#111111', fg='#aaaaaa',
+                 font=('Arial', 9, 'bold')).pack(side="left", padx=(0, 5))
+
+        for label_txt, mode_val, active_fg in [
+            ("Both", "Both", "white"),
+            ("Income", "Income", "#00F0FF"),
+            ("Expense", "Expense", "#FF007F")
+        ]:
+            rb = tk.Radiobutton(
+                radio_frame, text=label_txt, variable=self.chart_view_mode_var, value=mode_val,
+                bg='#111111', fg=active_fg, selectcolor='#1e1e1e',
+                activebackground='#111111', activeforeground=active_fg,
+                font=('Arial', 9, 'bold'), cursor="hand2",
+                command=lambda: self.on_resize(forced=True)
+            )
+            rb.pack(side="left", padx=4)
 
         # Connect interactive canvas listeners for hovers
         self.canvas_inc.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Income"))
         self.canvas_exp.mpl_connect("motion_notify_event", lambda e: self.handle_hover(e, "Expense"))
 
-        # UNIFIED CLICK MULTIPLEXER (PRESERVES ORIGINAL INTERACTIVE ACTIONS)
+        # Unified Click Multiplexer
         def unified_click_handler(mpl_event, chart_type):
             if not mpl_event.inaxes:
                 return
-
-            # Instantly ignore all clicks if the profile is set to silence mode
             if self.view_profile_var.get() == "Silence All Tooltips":
                 return
 
-            # TRACK A: RIGHT-CLICK DISPATCHER (SANCTUARY ZOOM PRESENTATION VIEW)
-            # Checks for mouse button 3 and ensures no other presentation window is active
             if mpl_event.button == 3 and not (hasattr(self, 'modal_active') and self.modal_active):
                 wedges = self.income_wedges if chart_type == "Income" else self.expense_wedges
                 labels = self.income_labels if chart_type == "Income" else self.expense_labels
-
                 for idx, wedge in enumerate(wedges):
                     contained, _ = wedge.contains(mpl_event)
                     if contained and idx < len(labels):
                         self.zoom_modal_dispatcher(chart_type, idx, mpl_event)
                         return
-
-            # TRACK B: LEFT-CLICK DISPATCHER (YOUR ORIGINAL INTERACTIVE MECHANICS)
-            # Pass all left-clicks straight down to your original un-edited handler method
             elif mpl_event.button == 1:
                 self.handle_click(mpl_event, chart_type)
 
-        # Register our single-runway click manager to the vector canvas press streams
         self.canvas_inc.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Income"))
         self.canvas_exp.mpl_connect("button_press_event", lambda e: unified_click_handler(e, "Expense"))
 
@@ -1186,9 +1197,6 @@ class InteractiveDashboard:
             self.expense_inputs.append(new_row)
 
     def on_resize(self, event=None, forced=False):
-        """Manages responsive scaling mechanics, allowing wide rectangular canvas bounding boxes
-        to unlock massive horizontal and vertical scaling space for the charts.
-        """
         if event and event.widget != self.root and event.widget != self.main_frame:
             return
 
@@ -1203,35 +1211,55 @@ class InteractiveDashboard:
         if right_panel_w < 50:
             right_panel_w = (w_width * 5 // 6)
 
-        # Decoupled width and height so they can scale into widescreen rectangles natively
-        available_w = (right_panel_w - 85) // 2
-        available_h = w_height - 110  # Slightly padded to leave a clean runway for titles
+        view_mode = self.chart_view_mode_var.get() if hasattr(self, 'chart_view_mode_var') else "Both"
+        available_h = w_height - 90
 
-        size_pixels_w = max(150, available_w)
+        # Toggle grid visibility and calculate available width based on single vs. dual chart mode
+        if view_mode == "Both":
+            self.canvas_inc.get_tk_widget().grid(row=0, column=0, padx=15, pady=5)
+            self.canvas_exp.get_tk_widget().grid(row=0, column=1, padx=15, pady=5)
+            available_w = (right_panel_w - 85) // 2
+        elif view_mode == "Income":
+            self.canvas_exp.get_tk_widget().grid_remove()
+            self.canvas_inc.get_tk_widget().grid(row=0, column=0, padx=15, pady=5)
+            available_w = right_panel_w - 50
+        else:  # "Expense"
+            self.canvas_inc.get_tk_widget().grid_remove()
+            self.canvas_exp.get_tk_widget().grid(row=0, column=0, padx=15, pady=5)
+            available_w = right_panel_w - 50
+
         size_pixels_h = max(150, available_h)
+        # Cap single-chart width slightly relative to height so the circle stays centered without excessive horizontal blank space
+        max_reasonable_w = int(size_pixels_h * 1.45) if view_mode != "Both" else available_w
+        size_pixels_w = max(150, min(available_w, max_reasonable_w))
 
-        size_inches_w = size_pixels_w / 100.0
         size_inches_h = size_pixels_h / 100.0
+        size_inches_w = size_pixels_w / 100.0
 
-        # Maintain uniform font sizes relative to the vertical tracking bounds
-        font_sz = min(9.5, max(7.2, 7.2 + (size_inches_h * 0.40)))
+        # Boost font size slightly when presenting a single chart on a projector
+        base_font = 8.2 if view_mode != "Both" else 7.2
+        font_sz = min(11.0, max(base_font, base_font + (size_inches_h * 0.40)))
         thresh = min(0.24, max(0.15, 0.26 - (size_inches_h * 0.022)))
 
-        self.income_wedges = create_smart_pie(self.fig_income, self.income_sizes, self.income_labels, self.total_income,
-                                              self.income_title_var.get(), '#00F0FF', font_sz, thresh)
-        self.expense_wedges = create_smart_pie(self.fig_expense, self.expense_sizes, self.expense_labels,
-                                               self.total_expenses,
-                                               self.expense_title_var.get(), '#FF007F', font_sz, thresh)
+        if view_mode in ("Both", "Income"):
+            self.fig_income.set_size_inches(size_inches_w, size_inches_h)
+            self.income_wedges = create_smart_pie(
+                self.fig_income, self.income_sizes, self.income_labels, self.total_income,
+                self.income_title_var.get(), '#00F0FF', font_sz, thresh
+            )
+            if self.canvas_inc:
+                self.canvas_inc.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
+                self.canvas_inc.draw()
 
-        # Pass separate rectangular inches dimensions to prevent layout squishing
-        self.fig_income.set_size_inches(size_inches_w, size_inches_h)
-        self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
-
-        if self.canvas_inc and self.canvas_exp:
-            self.canvas_inc.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
-            self.canvas_exp.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
-            self.canvas_inc.draw()
-            self.canvas_exp.draw()
+        if view_mode in ("Both", "Expense"):
+            self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
+            self.expense_wedges = create_smart_pie(
+                self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
+                self.expense_title_var.get(), '#FF007F', font_sz, thresh
+            )
+            if self.canvas_exp:
+                self.canvas_exp.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
+                self.canvas_exp.draw()
 
     def save_charts(self):
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
