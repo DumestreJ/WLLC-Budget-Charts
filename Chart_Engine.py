@@ -23,7 +23,7 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
         ax.axis('off')
         return []
 
-    # FIXED: Lock the slice radius to 1.0. Because the subplot adjustments stretch the drawing box,
+    # Lock the slice radius to 1.0. Because the subplot adjustments stretch the drawing box,
     # a 1.0 radius circle naturally swells outward to fill the full vertical height available.
     wedges, _ = ax.pie(
         sizes, colors=NEON_COLORS[:len(sizes)], startangle=270, counterclock=False,
