@@ -150,6 +150,10 @@ class InteractiveDashboard:
         self.scroll_canvas.bind("<Configure>", configure_canvas_width)
 
         def handle_mouse_wheel(event):
+            # Stand down immediately if the Sanctuary Zoom Ledger modal is currently open
+            if hasattr(self, 'modal_active') and self.modal_active:
+                return
+
             # Only scroll if the content is taller than the visible canvas viewport
             if self.scrollable_inner_frame.winfo_reqheight() > self.scroll_canvas.winfo_height():
                 if event.num == 5 or event.delta < 0:
@@ -514,21 +518,31 @@ class InteractiveDashboard:
                         if show_breakdown_rows:
                             max_lbl_len = max(max_lbl_len, len(c_lbl))
 
-                col_width = max_lbl_len + 4
+                # VERTICALLY ALIGNED DOT-LEADER GRID FOR STANDARD TOOLTIP CARDS
+                max_val_len = len(f"${int(remainder if show_breakdown_rows else expected_total):,}")
+                if show_breakdown_rows and cleaned_subs:
+                    for _, sub_val in cleaned_subs:
+                        max_val_len = max(max_val_len, len(f"${int(sub_val):,}"))
+
+                total_line_width = max_lbl_len + max_val_len + 8
+                # Master repeating pattern (" . . . .") where odd indices are always dots
+                master_grid = (" ." * ((total_line_width // 2) + 2))[:total_line_width]
                 body_text = ""
 
-                # Only append the line item rows if our profile mode permits it
+                def format_aligned_row(lbl, val_str):
+                    start_idx = len(lbl) + 1
+                    end_idx = total_line_width - len(val_str) - 1
+                    # Slice exact vertical column positions from the master grid
+                    leader_slice = master_grid[start_idx:end_idx] if end_idx > start_idx else ""
+                    return f"{lbl} {leader_slice} {val_str}"
+
                 if show_breakdown_rows and cleaned_subs:
                     for sub_lbl, sub_val in cleaned_subs:
-                        val_str = f"${int(sub_val)}"
-                        pad_len = col_width - len(sub_lbl)
-                        body_text += f"{sub_lbl}{' ' * max(1, pad_len)}{val_str}\n"
+                        body_text += format_aligned_row(sub_lbl, f"${int(sub_val):,}") + "\n"
 
-                # If item details are hidden, display the full Category Total instead of an "Other Balance" remainder
-                rem_str = f"${int(remainder if show_breakdown_rows else expected_total)}"
+                rem_str = f"${int(remainder if show_breakdown_rows else expected_total):,}"
                 lbl_str = "Other Balance" if show_breakdown_rows else "Category Total"
-                pad_len = col_width - len(lbl_str)
-                body_text += f"{lbl_str}{' ' * max(1, pad_len)}{rem_str}"
+                body_text += format_aligned_row(lbl_str, rem_str)
 
                 # PROFILE-AWARE DYNAMIC USER INVITATION TEXT GENERATOR
                 if current_profile == "Public Mode (Hide Salaries)" and is_sensitive:
@@ -820,10 +834,9 @@ class InteractiveDashboard:
         self.trigger_sanctuary_zoom(display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs,
                                     remainder, expected_total)
 
-    def trigger_sanctuary_zoom(self, display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs,
-                               remainder, expected_total):
-        """Launches a single centralized dark modal view container for sanctuary projection screens,
-        utilizing an adaptive dual-axis scroll viewport that remains invisible until content overflows bounds.
+    def trigger_sanctuary_zoom(self, display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs, remainder, expected_total):
+        """Launches a centralized dark modal view container that sizes dynamically to fit its content
+        and supports mouse-wheel and Up/Down arrow font zooming across the session.
         """
         if hasattr(self, 'modal_active') and self.modal_active:
             return
@@ -833,54 +846,70 @@ class InteractiveDashboard:
             self.tooltip.destroy()
             self.tooltip = None
 
+        if not hasattr(self, 'zoom_font_size'):
+            self.zoom_font_size = 14
+
         self.zoom_modal = tk.Toplevel(self.root)
-        self.zoom_modal.configure(bg='#161616', highlightbackground=border_color, highlightcolor=border_color,
-                                  highlightthickness=2, bd=0)
+        self.zoom_modal.configure(bg='#161616', highlightbackground=border_color, highlightcolor=border_color, highlightthickness=2, bd=0)
         self.zoom_modal.wm_overrideredirect(True)
 
-        app_w, app_h = self.root.winfo_width(), self.root.winfo_height()
-        app_x, app_y = self.root.winfo_x(), self.root.winfo_y()
+        # VERTICALLY ALIGNED DOT-LEADER GRID
+        max_val_len = len(f"${int(remainder if show_breakdown_rows else expected_total):,}")
+        if show_breakdown_rows and cleaned_subs:
+            for _, s_val in cleaned_subs:
+                max_val_len = max(max_val_len, len(f"${int(s_val):,}"))
 
-        modal_h = int(app_h * 0.80)
-        modal_w = int(app_w * 0.45)
-        if modal_w < 480: modal_w = 480
-
-        self.zoom_modal.geometry(
-            f"{modal_w}x{modal_h}+{app_x + (app_w // 2) - (modal_w // 2)}+{app_y + (app_h // 2) - (modal_h // 2)}")
-
-        # High-Contrast Dot-Leader Alignment Matrix Calculations
-        zoom_width = max_lbl_len + 12
+        zoom_width = max_lbl_len + max_val_len + 10
+        master_grid = (" ." * ((zoom_width // 2) + 2))[:zoom_width]
         zoom_body_text = ""
+
+        def format_zoom_row(lbl, val_str):
+            start_idx = len(lbl) + 1
+            end_idx = zoom_width - len(val_str) - 1
+            leader_slice = master_grid[start_idx:end_idx] if end_idx > start_idx else ""
+            return f" {lbl} {leader_slice} {val_str}"
 
         if show_breakdown_rows and cleaned_subs:
             for s_lbl, s_val in cleaned_subs:
-                v_str = f"${int(s_val):,}"
-                dots_needed = zoom_width - len(s_lbl) - len(v_str)
-                dot_leader = " ." * (dots_needed // 2) + (" " if dots_needed % 2 != 0 else "")
-                zoom_body_text += f" {s_lbl}{dot_leader}{v_str}\n"
+                zoom_body_text += format_zoom_row(s_lbl, f"${int(s_val):,}") + "\n"
 
         z_rem_str = f"${int(remainder if show_breakdown_rows else expected_total):,}"
         z_lbl_str = "Other Balance" if show_breakdown_rows else "Category Total"
+        zoom_body_text += format_zoom_row(z_lbl_str, z_rem_str)
 
-        dots_needed = zoom_width - len(z_lbl_str) - len(z_rem_str)
-        z_dot_leader = " ." * (dots_needed // 2) + (" " if dots_needed % 2 != 0 else "")
-        zoom_body_text += f" {z_lbl_str}{z_dot_leader}{z_rem_str}"
+        # BUILD HEADER, FOOTER + HINT FIRST, THEN ADAPTIVE VIEWPORT
+        tk.Frame(self.zoom_modal, bg='#161616', height=20).pack(side="top")
+        title_lbl = tk.Label(self.zoom_modal, text=f" {display_cat_name.upper()} LEDGER ", bg='#161616', fg='white', font=('Arial', 16, 'bold'))
+        title_lbl.pack(side="top", fill="x", padx=30, pady=4)
+        tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(side="top", fill="x", padx=35, pady=(2, 10))
 
-        # Top Margin Padding & Structural Window Headers
-        tk.Frame(self.zoom_modal, bg='#161616', height=25).pack()
-        tk.Label(self.zoom_modal, text=f" {display_cat_name.upper()} LEDGER ", bg='#161616', fg='white',
-                 font=('Arial', 16, 'bold')).pack(fill="x", pady=5)
-        tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(fill="x", padx=50, pady=(2, 10))
+        def close_modal(*args):
+            if hasattr(self, 'zoom_modal') and self.zoom_modal:
+                self.zoom_modal.grab_release()
+                self.zoom_modal.destroy()
+                self.zoom_modal = None
+            self.modal_active = False
 
-        # FEATURE IMPLEMENTATION: ADAPTIVE HIDDEN DUAL-AXIS SCROLL VIEWPORT
-        # Core layout wrapper frame containing the canvas and adaptive scroll tracks
+        # Pack footer container at bottom so both the hint and close button always stay visible
+        footer_frame = tk.Frame(self.zoom_modal, bg='#161616')
+        footer_frame.pack(side="bottom", fill="x", pady=(6, 16))
+
+        hint_lbl = tk.Label(
+            footer_frame,
+            text="Scroll Mouse Wheel or Press ↑ / ↓ Arrows to Resize Text  |  ESC to Close",
+            bg='#161616', fg='#777777', font=('Arial', 9, 'italic')
+        )
+        hint_lbl.pack(side="top", pady=(0, 8))
+
+        btn_close = tk.Button(footer_frame, text="[ Close Ledger View ]", command=close_modal,
+                              bg='#161616', fg='#aaaaaa', activebackground='#161616', activeforeground='white',
+                              font=('Arial', 12, 'bold'), bd=0, highlightthickness=0, cursor="hand2")
+        btn_close.pack(side="top")
+
         viewport_frame = tk.Frame(self.zoom_modal, bg='#161616')
-        viewport_frame.pack(fill="both", expand=True, padx=40, pady=5)
+        viewport_frame.pack(side="top", fill="both", expand=True, padx=25, pady=5)
 
-        zoom_canvas = tk.Canvas(viewport_frame, bg='#161616', bd=0, highlightthickness=0, yscrollincrement=10,
-                                xscrollincrement=10)
-
-        # Instantiate scrollbar hardware components safely linked to canvas matrix channels
+        zoom_canvas = tk.Canvas(viewport_frame, bg='#161616', bd=0, highlightthickness=0, yscrollincrement=10, xscrollincrement=10)
         h_scrollbar = tk.Scrollbar(viewport_frame, orient="horizontal", command=zoom_canvas.xview)
         v_scrollbar = tk.Scrollbar(viewport_frame, orient="vertical", command=zoom_canvas.yview)
         zoom_canvas.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
@@ -891,70 +920,105 @@ class InteractiveDashboard:
 
         # High-Contrast Ledger Body Label (Consolas Bold 14pt)
         m_body = tk.Label(inner_content_frame, text=zoom_body_text, bg='#161616', fg='#e0e0e0',
-                          font=('Consolas', 14, 'bold'), justify="left")
-        m_body.pack(fill="both", expand=True, padx=10, pady=10)
+                          font=('Consolas', self.zoom_font_size, 'bold'), justify="left")
+        m_body.pack(padx=10, pady=10)
 
-        def configure_adaptive_viewports(event):
-            """Monitors content requirements dynamically, keeping scroll bars
-            completely hidden unless text fields overlap container canvas margins.
-            """
+        zoom_canvas.pack(side="left", fill="both", expand=True)
+
+        # DYNAMIC GEOMETRY & ADAPTIVE SCROLLBAR ENGINE
+        def configure_adaptive_viewports(event=None):
             inner_content_frame.update_idletasks()
-            scroll_region = zoom_canvas.bbox("all")
-            zoom_canvas.configure(scrollregion=scroll_region)
+            zoom_canvas.update_idletasks()
+            zoom_canvas.configure(scrollregion=zoom_canvas.bbox("all"))
 
             canvas_w = zoom_canvas.winfo_width()
             canvas_h = zoom_canvas.winfo_height()
+            if canvas_w <= 1 or canvas_h <= 1:
+                return
+
             content_w = inner_content_frame.winfo_reqwidth()
             content_h = inner_content_frame.winfo_reqheight()
 
-            # Dynamic Horizontal Scrollbar Tracking
-            if content_w > canvas_w:
-                h_scrollbar.pack(side="bottom", fill="x")
+            needs_h_scroll = content_w > (canvas_w + 4)
+            needs_v_scroll = content_h > (canvas_h + 4)
+
+            if needs_h_scroll:
+                if not h_scrollbar.winfo_ismapped():
+                    h_scrollbar.pack(side="bottom", fill="x", before=zoom_canvas)
             else:
                 h_scrollbar.pack_forget()
 
-            # Dynamic Vertical Scrollbar Tracking
-            if content_h > canvas_h:
-                v_scrollbar.pack(side="right", fill="y")
-                zoom_canvas.pack(side="left", fill="both", expand=True)
+            if needs_v_scroll:
+                if not v_scrollbar.winfo_ismapped():
+                    v_scrollbar.pack(side="right", fill="y", before=zoom_canvas)
             else:
                 v_scrollbar.pack_forget()
-                zoom_canvas.pack(side="top", fill="both", expand=True)
 
-            # Symmetrical centering adjustments if content fits comfortably inside window bounds
-            if content_w < canvas_w:
-                x_offset = (canvas_w - content_w) // 2
+            if not needs_h_scroll:
+                x_offset = max(0, (canvas_w - content_w) // 2)
                 zoom_canvas.coords(canvas_win_id, x_offset, 0)
             else:
                 zoom_canvas.coords(canvas_win_id, 0, 0)
 
+        def resize_and_center_modal():
+            """Recalculates exact modal dimensions for the current font size and centers on screen."""
+            self.zoom_modal.update_idletasks()
+            inner_content_frame.update_idletasks()
+
+            app_w, app_h = self.root.winfo_width(), self.root.winfo_height()
+            app_x, app_y = self.root.winfo_x(), self.root.winfo_y()
+
+            header_h = 20 + title_lbl.winfo_reqheight() + 8 + 2 + 12
+            footer_h = footer_frame.winfo_reqheight() + 22
+            req_content_w = max(
+                inner_content_frame.winfo_reqwidth() + 70,
+                title_lbl.winfo_reqwidth() + 80,
+                hint_lbl.winfo_reqwidth() + 60,
+                340
+            )
+            req_content_h = header_h + inner_content_frame.winfo_reqheight() + footer_h + 15
+
+            max_allowed_w = max(320, app_w - 40)
+            max_allowed_h = max(240, app_h - 40)
+
+            final_w = min(req_content_w, max_allowed_w)
+            final_h = min(req_content_h, max_allowed_h)
+
+            if req_content_h > max_allowed_h and final_w + 20 <= max_allowed_w:
+                final_w += 20
+            if req_content_w > max_allowed_w and final_h + 20 <= max_allowed_h:
+                final_h += 20
+
+            target_x = app_x + (app_w // 2) - (final_w // 2)
+            target_y = app_y + (app_h // 2) - (final_h // 2)
+            self.zoom_modal.geometry(f"{final_w}x{final_h}+{target_x}+{target_y}")
+            self.zoom_modal.update_idletasks()
+            configure_adaptive_viewports()
+
+        # MOUSE-WHEEL & UP/DOWN ARROW FONT ZOOM HANDLER
+        def adjust_zoom_font(delta_step):
+            self.zoom_font_size = min(32, max(10, self.zoom_font_size + delta_step))
+            m_body.configure(font=('Consolas', self.zoom_font_size, 'bold'))
+            resize_and_center_modal()
+
+        def handle_modal_wheel(event):
+            if event.num == 4 or (hasattr(event, 'delta') and event.delta > 0):
+                adjust_zoom_font(1)
+            elif event.num == 5 or (hasattr(event, 'delta') and event.delta < 0):
+                adjust_zoom_font(-1)
+
         zoom_canvas.bind("<Configure>", configure_adaptive_viewports)
         inner_content_frame.bind("<Configure>", configure_adaptive_viewports)
 
-        # Connect standard hardware mouse wheel gesture paths recursively into canvas channels
-        def handle_modal_mouse_wheel(event):
-            if event.num == 5 or event.delta < 0:
-                zoom_canvas.yview_scroll(1, "units")
-            elif event.num == 4 or event.delta > 0:
-                zoom_canvas.yview_scroll(-1, "units")
+        # Bind directly to the modal window so it never hijacks left-panel scrolling after closing
+        self.zoom_modal.bind("<MouseWheel>", handle_modal_wheel)
+        self.zoom_modal.bind("<Button-4>", handle_modal_wheel)
+        self.zoom_modal.bind("<Button-5>", handle_modal_wheel)
+        self.zoom_modal.bind("<Up>", lambda e: adjust_zoom_font(1))
+        self.zoom_modal.bind("<Down>", lambda e: adjust_zoom_font(-1))
 
-        zoom_canvas.bind_all("<MouseWheel>", handle_modal_mouse_wheel)
-        zoom_canvas.bind_all("<Button-4>", handle_modal_mouse_wheel)
-        zoom_canvas.bind_all("<Button-5>", handle_modal_mouse_wheel)
-
-        # Dismount Closure Release Routines
-        def close_modal(*args):
-            if hasattr(self, 'zoom_modal') and self.zoom_modal:
-                self.zoom_modal.grab_release()
-                self.zoom_modal.destroy()
-                self.zoom_modal = None
-            self.modal_active = False
-
-        tk.Button(self.zoom_modal, text="[ Close Ledger View ]", command=close_modal,
-                  bg='#161616', fg='#aaaaaa', activebackground='#161616', activeforeground='white',
-                  font=('Arial', 12, 'bold'), bd=0, highlightthickness=0, cursor="hand2").pack(side="bottom", pady=25)
-
-        self.zoom_modal.update_idletasks()
+        # Initial sizing & focus lock
+        resize_and_center_modal()
         self.zoom_modal.transient(self.root)
         self.zoom_modal.grab_set()
         self.zoom_modal.focus_force()
