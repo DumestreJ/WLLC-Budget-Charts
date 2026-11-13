@@ -27,8 +27,13 @@ class MonthlyFinancialsView:
         self.modal_active = False
         self.zoom_modal = None
         self.zoom_font_size = 14
-        self.hover_vline = None
-        self.hover_dot = None
+
+        self.ax_top = None
+        self.ax_bot = None
+        self.hover_vline_top = None
+        self.hover_vline_bot = None
+        self.hover_dot_top = None
+        self.hover_dot_bot = None
 
         self.title_var = tk.StringVar(value="2026 Monthly Financial Results")
         self.include_surplus_var = tk.BooleanVar(value=True)
@@ -41,7 +46,6 @@ class MonthlyFinancialsView:
         self.row_widgets = []
 
         self.fig = Figure(figsize=(8, 5), dpi=100, facecolor='#111111')
-        self.ax = None
         self.canvas = None
 
         self.build_ui()
@@ -698,14 +702,16 @@ class MonthlyFinancialsView:
         mode_tag = "Cumulative YTD" if is_cumulative else "Monthly"
         surplus_tag = "Incl. PY Surplus" if self.include_surplus_var.get() else "Operating Only"
 
-        # Derive average monthly budget from Total Expenses on the active Budget page
-        budget_tot_exp = float(getattr(self.app.budget_view, 'total_expenses', 0.0))
-        monthly_budget = budget_tot_exp / 12.0
+        base = self.get_budget_monthly_baseline()
+        monthly_budget_exp = base["expense"]
+        monthly_budget_inc = base["income"] + (base["other_income"] if self.include_surplus_var.get() else 0.0)
 
-        self.ax, self.hover_vline, self.hover_dot = create_monthly_line_chart(
+        (self.ax_top, self.ax_bot, self.hover_vline_top, self.hover_vline_bot,
+         self.hover_dot_top, self.hover_dot_bot) = create_monthly_line_chart(
             self.fig, months, inc_arr, exp_arr, is_fc_flags,
             self.title_var.get(), mode_tag, surplus_tag,
-            theme=theme, monthly_budget=monthly_budget, is_cumulative=is_cumulative
+            theme=theme, monthly_budget=monthly_budget_exp,
+            monthly_budget_inc=monthly_budget_inc, is_cumulative=is_cumulative
         )
         if theme == "dark":
             self.canvas.draw()
@@ -718,24 +724,52 @@ class MonthlyFinancialsView:
         if idx < 0 or idx >= len(active_recs):
             return None
 
+        # Bottom Net Profit/Loss Strip hovered
+        if event.inaxes == self.ax_bot:
+            net_y = float(inc_arr[idx] - exp_arr[idx])
+            return idx, active_recs[idx], "Net", net_y
+
+        # Top Gross Income vs. Expenses Panel hovered
         inc_y, exp_y, cursor_y = inc_arr[idx], exp_arr[idx], event.ydata
         dist_inc, dist_exp = abs(cursor_y - inc_y), abs(cursor_y - exp_y)
-
-        # Tie-breaker: if lines are identical/equidistant, above = Income, below = Expense
         if abs(inc_y - exp_y) < 1.0 or abs(dist_inc - dist_exp) < 1.0:
             line_type = "Income" if cursor_y >= inc_y else "Expense"
         else:
             line_type = "Income" if dist_inc < dist_exp else "Expense"
-
         return idx, active_recs[idx], line_type, (inc_y if line_type == "Income" else exp_y)
 
     def get_aggregated_categories(self, target_idx, line_type):
-        """Returns ordered list of category dicts for target month or Cumulative YTD."""
+        """Returns ordered list of category dicts for target month or Cumulative YTD,
+        supporting 'Income', 'Expense', and the bottom strip 'Net' P&L summary.
+        """
         profile = self.view_profile_var.get()
         is_cumulative = self.chart_mode_var.get() == "Cumulative"
-        active_recs, _, _, _, _ = self.get_active_series()
-        recs_to_sum = active_recs[:target_idx + 1] if is_cumulative else [active_recs[target_idx]]
+        active_recs, _, inc_arr, exp_arr, _ = self.get_active_series()
 
+        # Dedicated Net Profit/Loss & Budget Variance Breakdown for Bottom Strip
+        if line_type == "Net":
+            tot_inc = float(inc_arr[target_idx])
+            tot_exp = float(exp_arr[target_idx])
+            net_actual = tot_inc - tot_exp
+            mult = (target_idx + 1) if is_cumulative else 1
+            base = self.get_budget_monthly_baseline()
+            bud_inc = (base["income"] + (base["other_income"] if self.include_surplus_var.get() else 0.0)) * mult
+            bud_exp = base["expense"] * mult
+            bud_net = bud_inc - bud_exp
+            variance = net_actual - bud_net
+            period_lbl = f"YTD thru {active_recs[target_idx]['month']}" if is_cumulative else active_recs[target_idx]['month']
+
+            summary_items = [
+                ("Total Income", tot_inc),
+                ("Total Expenses", -tot_exp),
+                ("Budgeted Net", bud_net),
+                ("Variance vs. Budget", variance),
+            ]
+            cats = [{"raw_key": lbl, "label": lbl, "total": val, "subs": {lbl: val}, "locked": False} for lbl, val in summary_items]
+            return cats, f"Net Surplus/(Deficit) ({period_lbl})", net_actual
+
+        # Standard Gross Income or Expense Category Aggregation
+        recs_to_sum = active_recs[:target_idx + 1] if is_cumulative else [active_recs[target_idx]]
         ordered_cats = []
         cat_map = {}
         total_val = 0.0
@@ -774,21 +808,33 @@ class MonthlyFinancialsView:
 
         hit = self.resolve_hovered_target(event)
         if not hit:
-            if self.hover_vline and self.hover_vline.get_visible():
-                self.hover_vline.set_visible(False)
-                self.hover_dot.set_visible(False)
+            if (self.hover_vline_top and self.hover_vline_top.get_visible()) or (self.hover_vline_bot and self.hover_vline_bot.get_visible()):
+                self.hover_vline_top.set_visible(False)
+                self.hover_vline_bot.set_visible(False)
+                self.hover_dot_top.set_visible(False)
+                self.hover_dot_bot.set_visible(False)
                 self.canvas.draw_idle()
             return
 
         idx, rec, line_type, target_y = hit
-        border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
+        if line_type == "Net":
+            border_color = '#00FF66' if target_y >= 0 else '#FF3300'
+        else:
+            border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
 
-        if self.hover_vline and self.hover_dot:
-            self.hover_vline.set_xdata([idx, idx])
-            self.hover_vline.set_visible(True)
-            self.hover_dot.set_data([idx], [target_y])
-            self.hover_dot.set_markeredgecolor(border_color)
-            self.hover_dot.set_visible(True)
+        if self.hover_vline_top and self.hover_vline_bot:
+            self.hover_vline_top.set_xdata([idx, idx]); self.hover_vline_top.set_visible(True)
+            self.hover_vline_bot.set_xdata([idx, idx]); self.hover_vline_bot.set_visible(True)
+            if line_type == "Net":
+                self.hover_dot_top.set_visible(False)
+                self.hover_dot_bot.set_data([idx], [target_y])
+                self.hover_dot_bot.set_markeredgecolor(border_color)
+                self.hover_dot_bot.set_visible(True)
+            else:
+                self.hover_dot_bot.set_visible(False)
+                self.hover_dot_top.set_data([idx], [target_y])
+                self.hover_dot_top.set_markeredgecolor(border_color)
+                self.hover_dot_top.set_visible(True)
             self.canvas.draw_idle()
 
         cats, tot_label, total_val = self.get_aggregated_categories(idx, line_type)
@@ -853,9 +899,13 @@ class MonthlyFinancialsView:
             self.tooltip.destroy()
             self.tooltip = None
 
-        border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
         cats, tot_label, total_val = self.get_aggregated_categories(idx, line_type)
         expanded_keys = set()
+
+        if line_type == "Net":
+            border_color = '#00FF66' if total_val >= 0 else '#FF3300'
+        else:
+            border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
 
         scope_prefix = "YTD THRU " if self.chart_mode_var.get() == "Cumulative" else ""
         tag_suffix = "(FORECAST)" if rec["is_forecast"] else "(ACTUAL)"
