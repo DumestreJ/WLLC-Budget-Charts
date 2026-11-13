@@ -1,18 +1,21 @@
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from openpyxl import load_workbook
 
 
 def import_excel_budget(app):
-    """Opens a file dialog, reads workbook tabs, prompts user with a Listbox selection menu,
+    """Opens a file dialog, reads workbook tabs, prompts user with a dropdown tab selector,
     and cleanly reconstructs category allocations directly into the dashboard application.
     """
     desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    default_dir = desktop_dir if os.path.exists(desktop_dir) else os.getcwd()
+    initial_dir = getattr(app, 'last_import_dir', default_dir) or default_dir
+
     file_selected = filedialog.askopenfilename(
         title="Select Excel Budget Spreadsheet",
-        initialdir=desktop_dir,
-        filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")]
+        initialdir=initial_dir,
+        filetypes=[("Excel Files", "*.xlsx *.xlsm"), ("All Files", "*.*")]
     )
     if not file_selected:
         return
@@ -25,48 +28,56 @@ def import_excel_budget(app):
         sheets = wb.sheetnames
 
         selector = tk.Toplevel(app.root)
-        selector.title("Select Budget Sheet Tab")
-        selector.configure(bg='#1e1e1e')
-        selector.geometry("320x300")
+        selector.title("Select Budget Worksheet")
+        selector.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+        selector.geometry("430x210")
         selector.transient(app.root)
         selector.grab_set()
 
-        mx = app.root.winfo_x() + (app.root.winfo_width() // 2) - 160
-        my = app.root.winfo_y() + (app.root.winfo_height() // 2) - 150
+        mx = app.root.winfo_x() + (app.root.winfo_width() // 2) - 215
+        my = app.root.winfo_y() + (app.root.winfo_height() // 2) - 105
         selector.geometry(f"+{mx}+{my}")
 
-        tk.Label(selector, text="Choose a sheet tab to import:", bg='#1e1e1e', fg='white',
-                 font=('Arial', 10, 'bold')).pack(anchor="w", padx=10, pady=8)
+        tk.Label(selector, text="SELECT BUDGET WORKBOOK TAB", bg='#1c1c1c', fg='#00F0FF',
+                 font=('Arial', 10, 'bold')).pack(pady=(16, 10))
 
-        list_frame = tk.Frame(selector, bg='#1e1e1e')
-        list_frame.pack(fill="both", expand=True, padx=10, pady=2)
+        frm = tk.Frame(selector, bg='#1c1c1c')
+        frm.pack(fill="x", padx=25, pady=8)
+        tk.Label(frm, text="Budget Tab:", bg='#1c1c1c', fg='white',
+                 font=('Arial', 9, 'bold'), width=14, anchor="w").pack(side="left")
 
-        box = tk.Listbox(list_frame, bg='#2a2a2a', fg='white', selectbackground='#00F0FF',
-                         selectforeground='black', font=('Arial', 9), bd=0, highlightthickness=0)
-        scroll = tk.Scrollbar(list_frame, orient="vertical", command=box.yview)
-        box.configure(yscrollcommand=scroll.set)
-        box.pack(side="left", fill="both", expand=True)
-        scroll.pack(side="right", fill="y")
+        tab_choices = ["Select tab"] + list(sheets)
+        selected_tab_var = tk.StringVar(value="Select tab")
+        cb_sheet = ttk.Combobox(frm, textvariable=selected_tab_var, values=tab_choices, state="readonly", width=28)
+        cb_sheet.pack(side="right", fill="x", expand=True)
 
-        for name in sheets:
-            box.insert("end", name)
-
-        if sheets: box.selection_set(0)
         chosen_sheet_name = None
 
         def confirm_selection():
             nonlocal chosen_sheet_name
-            selection = box.curselection()
-            if selection:
-                chosen_sheet_name = box.get(selection)
+            picked = selected_tab_var.get()
+            if picked == "Select tab":
+                messagebox.showwarning("Selection Required", "Please choose a worksheet tab from the dropdown.", parent=selector)
+                return
+            chosen_sheet_name = picked
+            selector.grab_release()
             selector.destroy()
 
-        btn = tk.Button(selector, text="Import Selected Tab", command=confirm_selection,
-                        bg='#00F0FF', fg='black', font=('Arial', 9, 'bold'), pady=4)
-        btn.pack(fill="x", padx=10, pady=10)
+        def cancel_selection():
+            selector.grab_release()
+            selector.destroy()
 
-        selector.wait_window()
-        if not chosen_sheet_name: return
+        btn_row = tk.Frame(selector, bg='#1c1c1c')
+        btn_row.pack(side="bottom", pady=18)
+        tk.Button(btn_row, text="Cancel", command=cancel_selection, bg='#2a2a2a', fg='white',
+                  font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=10)
+        tk.Button(btn_row, text="Import Selected Tab", command=confirm_selection, bg='#00F0FF', fg='black',
+                  font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=10)
+
+        selector.bind("<Escape>", lambda e: cancel_selection())
+        app.root.wait_window(selector)
+        if not chosen_sheet_name:
+            return
 
         # Reset tracking lists from application memory
         app.subcategories.clear()
