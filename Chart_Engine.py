@@ -96,16 +96,26 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             # Snaps the start of the line perfectly flush onto the expanded 1.0 radius rim
             x_start, y_start = w.r * 0.98 * item['x'], w.r * 0.98 * item['y_orig']
 
-            # Increased kink extension out to 1.15 so lines clear the edge of the circle beautifully
-            x_kink, y_kink = w.r * 1.15 * item['x'], w.r * 1.15 * item['y_orig']
-            x_vertical = x_kink
-            y_vertical = item['y']
-
             # Extended text shelf line out to 1.35 to give labels a secure landing runway
             x_end = 1.35 * x_side
 
-            ax.plot([x_start, x_kink, x_vertical, x_end],
-                    [y_start, y_kink, y_vertical, item['y']],
+            # Variable-length radial ray extending directly to item['y'] (no vertical kink),
+            # safely clamped between the rim and the horizontal shelf so flat or steeply shifted
+            # wedges never double backward or shoot off-canvas.
+            min_reach = abs(x_start) + 0.04
+            max_reach = abs(x_end) - 0.04
+            if abs(item['y_orig']) > 0.08:
+                r_kink = item['y'] / item['y_orig']
+                raw_x_kink = r_kink * item['x']
+                if x_side > 0:
+                    x_kink = min(max_reach, max(min_reach, raw_x_kink))
+                else:
+                    x_kink = max(-max_reach, min(-min_reach, raw_x_kink))
+            else:
+                x_kink = (min_reach + 0.08) * x_side
+
+            ax.plot([x_start, x_kink, x_end],
+                    [y_start, item['y'], item['y']],
                     color=item['color'], linewidth=1.5, zorder=1)
 
             ax.text(x_end + (0.04 * x_side), item['y'], item['text'],
