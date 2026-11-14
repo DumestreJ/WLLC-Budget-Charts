@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from openpyxl import load_workbook
+import re
 
 
 def import_excel_budget(app):
@@ -78,6 +79,23 @@ def import_excel_budget(app):
         app.root.wait_window(selector)
         if not chosen_sheet_name:
             return
+
+        # Extract 4-digit year from the selected tab name (e.g., "2026 Budget") or header rows
+        year_match = re.search(r'\b(20\d{2})\b', chosen_sheet_name)
+        if not year_match:
+            ws_check = wb[chosen_sheet_name]
+            for r in ws_check.iter_rows(max_row=5, values_only=True):
+                row_str = " ".join(str(c) for c in r if c is not None)
+                year_match = re.search(r'\b(20\d{2})\b', row_str)
+                if year_match:
+                    break
+
+        if year_match:
+            yr = year_match.group(1)
+            cur_inc = re.sub(r'^20\d{2}\s+', '', app.income_title_var.get().strip())
+            cur_exp = re.sub(r'^20\d{2}\s+', '', app.expense_title_var.get().strip())
+            app.income_title_var.set(f"{yr} {cur_inc}")
+            app.expense_title_var.set(f"{yr} {cur_exp}")
 
         # Reset tracking lists from application memory
         app.subcategories.clear()
