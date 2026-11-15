@@ -2,7 +2,7 @@ import os
 from tkinter import filedialog
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
-from Chart_Engine import *  # Imports cleanly from your support module
+from utility_methods import *  # Imports cleanly from your support module
 import re
 
 

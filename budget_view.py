@@ -3,7 +3,7 @@ import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from Chart_Engine import *  # Imports cleanly from your support module
+from utility_methods import *  # Imports cleanly from your support module
 from budget_importer import import_excel_budget
 import csv
 

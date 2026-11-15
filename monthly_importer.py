@@ -3,7 +3,7 @@ import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import openpyxl
-from Chart_Engine import *  # Imports cleanly from your support module
+from utility_methods import *  # Imports cleanly from your support module
 
 
 def parse_account_label(raw_text):
