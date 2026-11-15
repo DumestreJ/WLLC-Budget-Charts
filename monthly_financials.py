@@ -50,49 +50,76 @@ class MonthlyFinancialsView:
 
         self.build_ui()
 
+    def _extract_year(self, text):
+        m = re.search(r'\b(20\d{2})\b', str(text or ""))
+        return m.group(1) if m else None
+
+    def _peek_csv_year(self, csv_path):
+        try:
+            with open(csv_path, mode='r', newline='', encoding='utf-8-sig') as f:
+                for row in csv.DictReader(f):
+                    if row.get('RowType', '').strip() == 'Meta' and row.get('Category', '').strip() == 'Title':
+                        return self._extract_year(row.get('TitleText', ''))
+        except Exception:
+            pass
+        return None
+
     def ensure_initialized(self):
-        """Initializes Monthly Financials on first visit, and refreshes any Forecast ('Fcst')
-        months from the active Budget tab whenever no saved monthly_financials.csv overrides them.
-        """
-        if not self.initialized:
-            self.initialized = True
-            self.load_initial_financial_data()
+        budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
+                     self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
+
+        # Case 1: Already initialized earlier in this session — check if Budget year changed
+        if self.initialized:
+            cur_fin_yr = self._extract_year(self.title_var.get())
+            if budget_yr and cur_fin_yr and budget_yr != cur_fin_yr:
+                messagebox.showinfo(
+                    "Budget Year Changed",
+                    f"Active Budget is now {budget_yr} (Monthly Financials was showing {cur_fin_yr}).\n\n"
+                    f"Resetting Monthly Financials to {budget_yr} Budget Forecast data."
+                )
+                self.title_var.set(f"{budget_yr} Monthly Financial Results")
+                self.seed_from_active_budget()
+                self.rebuild_left_table()
+            self.redraw_chart()
             return
 
-        # If no monthly_financials.csv exists yet, keep all Forecast ('Fcst') rows synced
-        # with the latest numbers on the Budget tab (including newly imported Budget Excel data)
-        exec_dir = os.getcwd()
-        cwd_csv = os.path.join(exec_dir, "monthly_financials.csv")
-        desktop_csv = os.path.join(os.path.expanduser("~"), "Desktop", "monthly_financials.csv")
+        # Case 2: First-time initialization in this session
+        self.initialized = True
 
-        if not os.path.exists(cwd_csv) and not os.path.exists(desktop_csv):
-            base = self.get_budget_monthly_baseline()
-            for rec in self.records:
-                if rec.get("is_forecast", True):
-                    rec["income"] = round(base["income"], 2)
-                    rec["expense"] = round(base["expense"], 2)
-                    rec["other_income"] = round(base["other_income"], 2)
-                    rec["inc_cats"] = {k: list(v) for k, v in base["inc_cats"].items()}
-                    rec["exp_cats"] = {k: list(v) for k, v in base["exp_cats"].items()}
-                    rec["other_cats"] = {k: list(v) for k, v in base["other_cats"].items()}
-                    # Refresh snapshot so 'Restore' matches the new Budget baseline
-                    rec["_orig_snapshot"] = {
-                        "month": rec["month"],
-                        "income": rec["income"],
-                        "other_income": rec["other_income"],
-                        "expense": rec["expense"],
-                        "is_forecast": rec["is_forecast"]
-                    }
-            self.rebuild_left_table()
+        csv_path = os.path.join(getattr(self.app, 'last_import_dir', os.getcwd()) or os.getcwd(),
+                                "monthly_financials.csv")
+        if not os.path.exists(csv_path):
+            csv_path = os.path.join(os.getcwd(), "monthly_financials.csv")
 
+        loaded_from_csv = False
+        if os.path.exists(csv_path):
+            csv_yr = self._peek_csv_year(csv_path)
+            if budget_yr and csv_yr and budget_yr != csv_yr:
+                messagebox.showinfo(
+                    "Fiscal Year Mismatch",
+                    f"Saved monthly_financials.csv is for {csv_yr}, while the active Budget is for {budget_yr}.\n\n"
+                    f"Skipping the {csv_yr} CSV and seeding the chart with {budget_yr} Budget Forecast data instead."
+                )
+            else:
+                self.load_from_csv(csv_path)
+                loaded_from_csv = True
+
+        if not loaded_from_csv:
+            if budget_yr:
+                self.title_var.set(f"{budget_yr} Monthly Financial Results")
+            self.seed_from_active_budget()
+
+        self.rebuild_left_table()
         self.redraw_chart()
 
     def clean_label(self, raw_text):
-        """Strips leading account numbers if 'Acct #s' is unchecked."""
-        if self.show_acct_nums_var.get():
-            return raw_text.strip()
-        cleaned = re.sub(r'^[\d\-\.]+\s+', '', raw_text.strip())
-        return cleaned if cleaned else raw_text.strip()
+        txt = str(raw_text).strip()
+        # Strip QuickBooks report-ordering prefixes like "1-", "2-", "9-"
+        txt = re.sub(r'^\d+-', '', txt).strip()
+        if getattr(self, 'show_acct_nums_var', None) and self.show_acct_nums_var.get():
+            return txt
+        # Strip standard 4-digit account numbers (e.g., "6402 ", "6402 · ", "6050.05 ")
+        return re.sub(r'^\d{4}(?:\.\d+)?\s*[·\-–]?\s*', '', txt).strip()
 
     def build_ui(self):
         # ---------------- LEFT PANEL ----------------
@@ -242,6 +269,7 @@ class MonthlyFinancialsView:
             self.scroll_canvas.configure(height=max_canvas_h)
             if not self.v_scrollbar.winfo_ismapped():
                 self.v_scrollbar.pack(side="right", fill="y")
+
     def load_initial_financial_data(self):
         exec_dir = os.getcwd()
         cwd_csv = os.path.join(exec_dir, "monthly_financials.csv")
@@ -262,7 +290,7 @@ class MonthlyFinancialsView:
 
     def get_budget_monthly_baseline(self):
         """Calculates monthly average Income, Other Income (PY Surplus), and Expenses from active Budget tab,
-        including any implied 'Other' remainder between category sums and Budget Totals.
+        preserving raw account-numbered category keys from self.app.subcategories when available.
         """
         inc_operating, other_surplus = 0.0, 0.0
         inc_cats, other_cats = {}, {}
@@ -274,20 +302,22 @@ class MonthlyFinancialsView:
             except ValueError:
                 monthly_val = 0.0
 
+            cat_key = raw_lbl
             subs = []
             for k, items in self.app.subcategories.items():
                 if raw_lbl == k or raw_lbl == self.app.clean_label_text(k):
+                    cat_key = k
                     subs = [(s_l, s_v / 12.0) for s_l, s_v in items]
                     break
             if not subs and monthly_val != 0:
-                subs = [(raw_lbl, monthly_val)]
+                subs = [(cat_key, monthly_val)]
 
-            if "surplus" in raw_lbl.lower():
+            if "surplus" in cat_key.lower():
                 other_surplus += monthly_val
-                other_cats[raw_lbl] = subs
+                other_cats[cat_key] = subs
             else:
                 inc_operating += monthly_val
-                inc_cats[raw_lbl] = subs
+                inc_cats[cat_key] = subs
 
         # Include implied "Other" income if Budget Total Income exceeds sum of entered income categories
         budget_tot_inc_mo = float(getattr(self.app.budget_view, 'total_income', 0.0)) / 12.0
@@ -305,14 +335,16 @@ class MonthlyFinancialsView:
                 monthly_val = 0.0
             exp_total += monthly_val
 
+            cat_key = raw_lbl
             subs = []
             for k, items in self.app.subcategories.items():
                 if raw_lbl == k or raw_lbl == self.app.clean_label_text(k):
+                    cat_key = k
                     subs = [(s_l, s_v / 12.0) for s_l, s_v in items]
                     break
             if not subs and monthly_val != 0:
-                subs = [(raw_lbl, monthly_val)]
-            exp_cats[raw_lbl] = subs
+                subs = [(cat_key, monthly_val)]
+            exp_cats[cat_key] = subs
 
         # Include implied "Other" expense if Budget Total Expenses exceeds sum of entered expense categories
         budget_tot_exp_mo = float(getattr(self.app.budget_view, 'total_expenses', 0.0)) / 12.0
@@ -570,22 +602,6 @@ class MonthlyFinancialsView:
         self.rebuild_left_table()
         self.redraw_chart()
 
-    def sync_from_entries_and_redraw(self):
-        for idx, (mo_v, inc_v, exp_v, fc_v) in enumerate(self.row_widgets):
-            if idx >= len(self.records):
-                break
-            self.records[idx]["month"] = mo_v.get().strip() or self.records[idx]["month"]
-            try:
-                self.records[idx]["income"] = float(inc_v.get().replace(',', '') or 0.0)
-            except ValueError:
-                pass
-            try:
-                self.records[idx]["expense"] = float(exp_v.get().replace(',', '') or 0.0)
-            except ValueError:
-                pass
-            self.records[idx]["is_forecast"] = fc_v.get()
-        self.redraw_chart()
-
     def save_to_csv(self):
         # Do NOT call sync_from_entries_and_redraw() here — live edits already update self.records,
         # and skipping re-parse preserves exact decimal precision and prevents double-counting PY Surplus.
@@ -738,6 +754,26 @@ class MonthlyFinancialsView:
             line_type = "Income" if dist_inc < dist_exp else "Expense"
         return idx, active_recs[idx], line_type, (inc_y if line_type == "Income" else exp_y)
 
+    def _category_norm_key(self, raw_key):
+        stripped = re.sub(r'^\d+-', '', str(raw_key).strip())
+        u_txt = stripped.upper()
+
+        # 1. Unified Income Buckets (Surplus & Congregational/Other Resources)
+        if "SURPLUS" in u_txt:
+            return "UNIFIED_SURPLUS"
+        if "CONGREGATIONAL SUPPORT" in u_txt:
+            return "UNIFIED_CONG_SUPPORT"
+        if any(tok in u_txt for tok in ["MISC INCOME", "OTHER RESOURCES", "OTHER INCOME"]):
+            return "UNIFIED_OTHER_RESOURCES"
+
+        # 2. Match strictly by 4-digit account number when available
+        acct_m = re.match(r'^(\d{4})\b', stripped)
+        if acct_m:
+            return f"ACCT_{acct_m.group(1)}"
+
+        # 3. Fallback to cleaned uppercase label only when no account number exists
+        return re.sub(r'^\d{4}(?:\.\d+)?\s*[·\-–]?\s*', '', u_txt).strip()
+
     def get_aggregated_categories(self, target_idx, line_type):
         """Returns ordered list of category dicts for target month or Cumulative YTD,
         supporting 'Income', 'Expense', and the bottom strip 'Net' P&L summary.
@@ -768,6 +804,15 @@ class MonthlyFinancialsView:
             cats = [{"raw_key": lbl, "label": lbl, "total": val, "subs": {lbl: val}, "locked": False} for lbl, val in summary_items]
             return cats, f"Net Surplus/(Deficit) ({period_lbl})", net_actual
 
+        # Build a consistent display label map preferring Actual months' terminology across all 12 months
+        preferred_labels = {}
+        for r in active_recs:
+            for b in (r.get("inc_cats", {}), r.get("other_cats", {}), r.get("exp_cats", {})):
+                for raw_k in b.keys():
+                    nk = self._category_norm_key(raw_k)
+                    if nk not in preferred_labels:
+                        preferred_labels[nk] = self.clean_label(raw_k)
+
         # Standard Gross Income or Expense Category Aggregation
         recs_to_sum = active_recs[:target_idx + 1] if is_cumulative else [active_recs[target_idx]]
         ordered_cats = []
@@ -784,15 +829,19 @@ class MonthlyFinancialsView:
 
             for bucket in buckets:
                 for cat_key, sub_items in bucket.items():
-                    if cat_key not in cat_map:
+                    norm_key = self._category_norm_key(cat_key)
+
+                    if norm_key not in cat_map:
+                        display_lbl = preferred_labels.get(norm_key, self.clean_label(cat_key))
                         is_sens = any(tok in cat_key.upper() for tok in ["SALARY", "BENEFIT", "CLERGY", "LAY MIN", "PASTOR", "DEACON"])
-                        cat_obj = {"raw_key": cat_key, "label": self.clean_label(cat_key), "total": 0.0, "subs": {}, "locked": (profile == "Public Mode (Hide Salaries)" and is_sens)}
-                        cat_map[cat_key] = cat_obj
+                        cat_obj = {"raw_key": norm_key, "label": display_lbl, "total": 0.0, "subs": {}, "locked": (profile == "Public Mode (Hide Salaries)" and is_sens)}
+                        cat_map[norm_key] = cat_obj
                         ordered_cats.append(cat_obj)
-                    c_obj = cat_map[cat_key]
+                    c_obj = cat_map[norm_key]
                     for s_lbl, s_val in sub_items:
+                        norm_sub = c_obj["label"] if norm_key.startswith("UNIFIED_") else self.clean_label(s_lbl)
                         c_obj["total"] += s_val
-                        c_obj["subs"][s_lbl] = c_obj["subs"].get(s_lbl, 0.0) + s_val
+                        c_obj["subs"][norm_sub] = c_obj["subs"].get(norm_sub, 0.0) + s_val
 
         tot_label = f"YTD {line_type} thru {active_recs[target_idx]['month']}" if is_cumulative else f"Total {line_type}"
         return ordered_cats, tot_label, total_val
