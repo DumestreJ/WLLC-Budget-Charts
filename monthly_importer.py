@@ -3,6 +3,7 @@ import re
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import openpyxl
+from Chart_Engine import *  # Imports cleanly from your support module
 
 
 def parse_account_label(raw_text):
@@ -100,6 +101,25 @@ def import_financial_spreadsheet(monthly_view):
               font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=10)
     tk.Button(btn_row, text="Import Selected Tabs", command=on_confirm, bg='#00F0FF', fg='black',
               font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=10)
+
+    FINANCIAL_HELP_TEXT = (
+        "HOW ACTUALS & FORECAST TABS ARE READ:\n\n"
+        "1. Actuals Tab (Flexible Layout):\n"
+        "   • Works with EITHER a standard monthly P&L tab ('Jan 26'–'Dec 26') OR a 'Budget vs. Actuals' tab where each month spans 'Actual | Budget | Difference' sub-columns.\n"
+        "   • Month headers can appear on any top row (typically Row 4 or Row 5).\n"
+        "   • Trailing future months with $0 Actual activity (such as Oct–Dec in a YTD September report) are automatically trimmed and filled as Forecast months.\n"
+        "   • Section Markers: Reads 'Income' (or 'Ordinary Income'), 'Other Income' / 'PY Surplus', and 'Expense'. Rows starting with 'Total ' are skipped to avoid double-counting.\n\n"
+        "2. Forecast Budget Tab (Remaining Months):\n"
+        "   • Any month after your last Actual month is populated automatically as Forecast (dotted lines).\n"
+        "   • Select a monthly Budget / 'Budget vs. Actuals' tab to pull month-by-month budgeted figures, OR choose 'None (Use Budget Tab Average)' to spread your active Budget page totals evenly by 12.\n\n"
+        "3. Fiscal Year Sync:\n"
+        "   • Make sure the active Budget page matches the year of the Financials you are importing."
+    )
+
+    tk.Button(btn_row, text="? Info",
+              command=lambda: show_import_help(dlg, "Monthly Financials Import Guide", FINANCIAL_HELP_TEXT),
+              bg='#2a2a2a', fg='#00F0FF', font=('Arial', 9, 'bold'),
+              padx=12, pady=5, bd=1, relief="solid", cursor="hand2").pack(side="left", padx=(0, 10))
 
     dlg.bind("<Escape>", lambda e: on_cancel())
     monthly_view.app.root.wait_window(dlg)
@@ -210,14 +230,24 @@ def parse_actuals_sheet(ws):
             if c_idx == 0 or cell_val is None:
                 continue
             s_val = str(cell_val).strip().lower()
-            if s_val == "total":
+            if "total" in s_val:
                 break
             for prefix, m_short in month_map.items():
                 if s_val.startswith(prefix):
                     found.append((c_idx, m_short))
                     break
         if found:
-            return _parse_indented_columns(ws, found, r_idx + 1)
+            parsed = _parse_indented_columns(ws, found, r_idx + 1)
+            # Remove trailing un-occurred future months where operating Income and Expense are both $0
+            while parsed.get("ordered_months"):
+                last_m = parsed["ordered_months"][-1]
+                rec = parsed["months"].get(last_m, {})
+                if abs(rec.get("income", 0.0)) < 0.01 and abs(rec.get("expense", 0.0)) < 0.01:
+                    parsed["ordered_months"].pop()
+                    parsed["months"].pop(last_m, None)
+                else:
+                    break
+            return parsed
     raise ValueError("Could not detect monthly columns (e.g., Jan 2026) in the selected Actuals tab.")
 
 
