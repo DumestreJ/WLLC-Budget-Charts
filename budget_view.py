@@ -239,14 +239,24 @@ class BudgetView:
         self.canvas_exp = FigureCanvasTkAgg(self.fig_expense, master=self.chart_holder)
         self.canvas_exp.get_tk_widget().grid(row=0, column=1, padx=15, pady=5)
 
-        # Global account number display configuration toggle variable
+        # Global account number and surplus display configuration toggle variables
         self.show_acct_nums_var = tk.BooleanVar(value=False)
+        self.include_surplus_var = tk.BooleanVar(value=True)
 
         # Single horizontal control bar at the bottom to preserve 100% of vertical chart height
         config_frame = tk.Frame(self.main_frame, bg='#111111')
         config_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=10)
 
-        # 1. Left Control: Account Numbers Checkbox
+        # 1. Left Controls: Account Numbers & Assigned Surplus Checkboxes
+        surplus_chk = tk.Checkbutton(
+            config_frame, text="Include Assigned Surplus",
+            variable=self.include_surplus_var,
+            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
+            activebackground='#111111', activeforeground='white',
+            font=('Arial', 9, 'bold'), command=lambda: self.process_inputs(is_live=True)
+        )
+        surplus_chk.pack(side="left", padx=(0, 15))
+
         acct_chk = tk.Checkbutton(
             config_frame, text="Show Account Numbers",
             variable=self.show_acct_nums_var,
@@ -254,7 +264,7 @@ class BudgetView:
             activebackground='#111111', activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.process_inputs
         )
-        acct_chk.pack(side="left", padx=(0, 15))
+        acct_chk.pack(side="left", padx=(0, 12))
 
         # 2. Middle Control: Confidentiality Profile Dropdown
         self.view_profile_var = tk.StringVar(value="Bookkeeper Mode (Full Details)")
@@ -1199,12 +1209,28 @@ class BudgetView:
             self.is_updating_display = False
 
             self.total_income = float(self.inc_total_val.get() or 0.0)
+            include_surplus = getattr(self, 'include_surplus_var', None)
+            use_surplus = include_surplus.get() if include_surplus is not None else True
+
             inc_candidates = []
             other_inc_accumulator = 0.0
+            excluded_surplus_total = 0.0
+
+            # Visually dim & strike through any Surplus row when unchecked, or restore normal styling when checked
+            for row_frame in self.inc_frame.winfo_children():
+                if isinstance(row_frame, tk.Frame):
+                    entries = [c for c in row_frame.winfo_children() if isinstance(c, tk.Entry)]
+                    if len(entries) >= 2 and "SURPLUS" in entries[0].get().upper():
+                        fg_col = 'white' if use_surplus else '#666666'
+                        entries[0].config(fg=fg_col, font=('Arial', 9, 'normal' if use_surplus else 'overstrike'))
+                        entries[1].config(fg=fg_col, font=('Arial', 9, 'bold' if use_surplus else 'bold overstrike'))
 
             for l, v in self.income_inputs:
                 lbl = l.get().strip()
                 val = float(v.get() or 0.0)
+                if "SURPLUS" in lbl.upper() and not use_surplus:
+                    excluded_surplus_total += val
+                    continue
                 if lbl or val > 0:
                     if val < 100.0:
                         other_inc_accumulator += val
@@ -1212,7 +1238,6 @@ class BudgetView:
                         inc_candidates.append((lbl if lbl else "New Income", val))
 
             inc_candidates.sort(key=lambda x: x[1], reverse=True)
-            # Extract tuple numeric values index x[1] for proper mathematical summation
             other_inc = (self.total_income - sum(x[1] for x in inc_candidates)) + other_inc_accumulator
 
             self.income_labels = [self.clean_label_text(x[0]) for x in inc_candidates]
@@ -1275,7 +1300,6 @@ class BudgetView:
                 except (ValueError, TypeError, AttributeError):
                     pass
 
-
         except ValueError:
             self.is_updating = False
             if not is_live:
@@ -1334,25 +1358,39 @@ class BudgetView:
         font_sz = min(11.0, max(base_font, base_font + (size_inches_h * 0.40)))
         thresh = min(0.24, max(0.15, 0.26 - (size_inches_h * 0.022)))
 
+        inc_ylim = None
+        exp_ylim = None
+
         if view_mode in ("Both", "Income"):
             self.fig_income.set_size_inches(size_inches_w, size_inches_h)
-            self.income_wedges = create_smart_pie(
+            self.income_wedges, inc_ylim = create_smart_pie(
                 self.fig_income, self.income_sizes, self.income_labels, self.total_income,
                 self.income_title_var.get(), '#00F0FF', font_sz, thresh
             )
-            if self.canvas_inc:
-                self.canvas_inc.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
-                self.canvas_inc.draw()
 
         if view_mode in ("Both", "Expense"):
             self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
-            self.expense_wedges = create_smart_pie(
+            self.expense_wedges, exp_ylim = create_smart_pie(
                 self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
                 self.expense_title_var.get(), '#FF007F', font_sz, thresh
             )
-            if self.canvas_exp:
-                self.canvas_exp.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
-                self.canvas_exp.draw()
+
+        # When both pies are shown side-by-side, lock them to the lower of the two dynamic Y-limits
+        # so their circle centers, diameters, and titles align horizontally.
+        if view_mode == "Both" and inc_ylim is not None and exp_ylim is not None:
+            shared_bottom = min(inc_ylim, exp_ylim)
+            if self.fig_income.axes:
+                self.fig_income.axes[0].set_ylim(shared_bottom, 1.48)
+            if self.fig_expense.axes:
+                self.fig_expense.axes[0].set_ylim(shared_bottom, 1.48)
+
+        if view_mode in ("Both", "Income") and self.canvas_inc:
+            self.canvas_inc.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
+            self.canvas_inc.draw()
+
+        if view_mode in ("Both", "Expense") and self.canvas_exp:
+            self.canvas_exp.get_tk_widget().configure(width=size_pixels_w, height=size_pixels_h)
+            self.canvas_exp.draw()
 
     def save_charts(self):
         dlg = tk.Toplevel(self.root)
@@ -1393,10 +1431,17 @@ class BudgetView:
         try:
             inc_path = os.path.join(desktop_dir, "income_budget.png")
             exp_path = os.path.join(desktop_dir, "expenses_budget.png")
-            create_smart_pie(self.fig_income, self.income_sizes, self.income_labels, self.total_income,
-                             self.income_title_var.get(), '#00F0FF', 9.5, 0.16, theme=theme_choice)
-            create_smart_pie(self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
-                             self.expense_title_var.get(), '#FF007F', 9.5, 0.16, theme=theme_choice)
+            _, inc_ylim = create_smart_pie(self.fig_income, self.income_sizes, self.income_labels, self.total_income,
+                                           self.income_title_var.get(), '#00F0FF', 9.5, 0.16, theme=theme_choice)
+            _, exp_ylim = create_smart_pie(self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
+                                           self.expense_title_var.get(), '#FF007F', 9.5, 0.16, theme=theme_choice)
+
+            shared_bottom = min(inc_ylim, exp_ylim)
+            if self.fig_income.axes:
+                self.fig_income.axes[0].set_ylim(shared_bottom, 1.48)
+            if self.fig_expense.axes:
+                self.fig_expense.axes[0].set_ylim(shared_bottom, 1.48)
+
             self.fig_income.savefig(inc_path, dpi=300, transparent=is_trans,
                                     facecolor=self.fig_income.get_facecolor(), bbox_inches='tight')
             self.fig_expense.savefig(exp_path, dpi=300, transparent=is_trans,
