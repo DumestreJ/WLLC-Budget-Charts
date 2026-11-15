@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import tkinter as tk
+from tkinter import ttk
 
 plt.style.use('dark_background')
 NEON_COLORS = ['#FF007F', '#00F0FF', '#FF00FF', '#7000FF', '#FFB800', '#00FF66', '#FF3300']
@@ -83,8 +85,8 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             if (prev_y - current_y) < min_gap:
                 label_list[idx]['y'] = prev_y - min_gap
 
-    adjust_side_spacing(right_side_labels, min_gap=0.20)
-    adjust_side_spacing(left_side_labels, min_gap=0.20)
+    adjust_side_spacing(right_side_labels, min_gap=0.22)
+    adjust_side_spacing(left_side_labels, min_gap=0.22)
 
     for side_list, x_side in [(right_side_labels, 1), (left_side_labels, -1)]:
         horizontal_align = "left" if x_side > 0 else "right"
@@ -96,14 +98,14 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             # Snaps the start of the line perfectly flush onto the expanded 1.0 radius rim
             x_start, y_start = w.r * 0.98 * item['x'], w.r * 0.98 * item['y_orig']
 
-            # Extended text shelf line out to 1.35 to give labels a secure landing runway
-            x_end = 1.35 * x_side
+            # Pulled in to 1.12 so a 3 o'clock label sits right beside the rim with a short, crisp shelf
+            # and gives wide right-side category names plenty of room before the canvas edge.
+            x_end = 1.12 * x_side
 
             # Variable-length radial ray extending directly to item['y'] (no vertical kink),
-            # safely clamped between the rim and the horizontal shelf so flat or steeply shifted
-            # wedges never double backward or shoot off-canvas.
-            min_reach = abs(x_start) + 0.04
-            max_reach = abs(x_end) - 0.04
+            # safely clamped between the rim and the horizontal shelf.
+            min_reach = abs(x_start) + 0.03
+            max_reach = abs(x_end) - 0.03
             if abs(item['y_orig']) > 0.08:
                 r_kink = item['y'] / item['y_orig']
                 raw_x_kink = r_kink * item['x']
@@ -112,7 +114,7 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
                 else:
                     x_kink = max(-max_reach, min(-min_reach, raw_x_kink))
             else:
-                x_kink = (min_reach + 0.08) * x_side
+                x_kink = (min_reach + 0.03) * x_side
 
             ax.plot([x_start, x_kink, x_end],
                     [y_start, item['y'], item['y']],
@@ -139,13 +141,14 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
             color=sub_color, fontname='Arial', fontsize=dynamic_sub_size, weight='bold',
             horizontalalignment='center', verticalalignment='center')
 
-    dynamic_bottom_limit = lowest_label_y - 0.35
+    # Pad dynamically below the lowest label's vertical midpoint to clear the bottom half of the 2-line text block
+    dynamic_bottom_limit = lowest_label_y - 0.18
 
-    ax.set_xlim(-1.35, 2.1)
-    ax.set_ylim(max(-1.65, dynamic_bottom_limit), 1.48)
+    ax.set_xlim(-1.35, 2.25)
+    ax.set_ylim(dynamic_bottom_limit, 1.48)
     ax.axis('off')
 
-    return wedges
+    return wedges, dynamic_bottom_limit
 
 
 def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_text, mode_tag, surplus_tag,
@@ -260,3 +263,76 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
 
     fig.subplots_adjust(left=0.10, right=0.88, top=0.90, bottom=0.08)
     return ax_top, ax_bot, v_top, v_bot, d_top, d_bot
+
+def show_import_help(parent, title, guide_text):
+    """Opens a clean dark-themed help popup with an anchored bottom button
+    and an auto-hiding vertical scrollbar when text exceeds the viewing area.
+    """
+    help_win = tk.Toplevel(parent)
+    help_win.title(title)
+    help_win.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+    help_win.geometry("540x430")
+    help_win.minsize(420, 280)
+    help_win.transient(parent)
+    help_win.grab_set()
+
+    mx = parent.winfo_rootx() + (parent.winfo_width() // 2) - 270
+    my = parent.winfo_rooty() + (parent.winfo_height() // 2) - 215
+    help_win.geometry(f"+{max(20, mx)}+{max(20, my)}")
+
+    def close_help():
+        help_win.grab_release()
+        help_win.destroy()
+
+    # 1. Anchor header to top and "Got It" button to bottom FIRST so resizing never hides them
+    tk.Label(help_win, text=title.upper(), bg='#1c1c1c', fg='#00F0FF',
+             font=('Arial', 10, 'bold')).pack(side="top", pady=(14, 8))
+
+    btn_bar = tk.Frame(help_win, bg='#1c1c1c')
+    btn_bar.pack(side="bottom", fill="x", pady=(8, 14))
+    tk.Button(btn_bar, text="Got It", command=close_help, bg='#00F0FF', fg='black',
+              font=('Arial', 9, 'bold'), padx=22, pady=5, bd=0, cursor="hand2").pack()
+
+    # 2. Middle scrollable text container fills remaining space cleanly
+    txt_frame = tk.Frame(help_win, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+    txt_frame.pack(side="top", fill="both", expand=True, padx=18, pady=4)
+
+    canvas = tk.Canvas(txt_frame, bg='#141414', bd=0, highlightthickness=0)
+    v_scroll = ttk.Scrollbar(txt_frame, orient="vertical", command=canvas.yview,
+                             style="Dark.Vertical.TScrollbar")
+    canvas.configure(yscrollcommand=v_scroll.set)
+    canvas.pack(side="left", fill="both", expand=True)
+
+    inner = tk.Frame(canvas, bg='#141414')
+    win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+
+    lbl = tk.Label(inner, text=guide_text, bg='#141414', fg='#e0e0e0',
+                   font=('Arial', 9), justify="left", anchor="nw", padx=12, pady=10)
+    lbl.pack(fill="both", expand=True)
+
+    def sync_scroll(event=None):
+        c_w = canvas.winfo_width()
+        if c_w > 30:
+            canvas.itemconfig(win_id, width=c_w)
+            lbl.config(wraplength=c_w - 24)
+        help_win.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        if inner.winfo_reqheight() > canvas.winfo_height():
+            if not v_scroll.winfo_ismapped():
+                v_scroll.pack(side="right", fill="y")
+        else:
+            v_scroll.pack_forget()
+            canvas.yview_moveto(0)
+
+    canvas.bind("<Configure>", sync_scroll)
+    inner.bind("<Configure>", sync_scroll)
+
+    def on_wheel(event):
+        if inner.winfo_reqheight() > canvas.winfo_height():
+            step = 1 if (event.num == 5 or event.delta < 0) else -1
+            canvas.yview_scroll(step, "units")
+
+    help_win.bind("<MouseWheel>", on_wheel)
+    help_win.bind("<Button-4>", on_wheel)
+    help_win.bind("<Button-5>", on_wheel)
+    help_win.bind("<Escape>", lambda e: close_help())
