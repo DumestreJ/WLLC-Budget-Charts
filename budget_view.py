@@ -338,7 +338,7 @@ class BudgetView:
         import re
         # Pattern splits: Optional "Total ", 4 digits, optional decimal points/digits,
         # and captures any surrounding dash (-), dot (·), or space separators safely.
-        cleaned = re.sub(r'^(Total\s+)?\d+(\.\d+)?\s*[\-·•]\s*', '', text)
+        cleaned = re.sub(r'^(Total\s+)?\d{4}(\.\d+)?\s*[\-·•]?\s*', '', text)
         return cleaned.strip()
 
     def add_title_row(self, master, title_var, text_color):
