@@ -92,7 +92,7 @@ class MonthlyFinancialsView:
             csv_path = os.path.join(os.getcwd(), "monthly_financials.csv")
 
         loaded_from_csv = False
-        if os.path.exists(csv_path):
+        if os.path.exists(csv_path) and not getattr(self, 'force_forecast_reset', False):
             csv_yr = self._peek_csv_year(csv_path)
             if budget_yr and csv_yr and budget_yr != csv_yr:
                 messagebox.showinfo(
@@ -104,6 +104,7 @@ class MonthlyFinancialsView:
                 self.load_from_csv(csv_path)
                 loaded_from_csv = True
 
+        self.force_forecast_reset = False
         if not loaded_from_csv:
             if budget_yr:
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
@@ -174,7 +175,14 @@ class MonthlyFinancialsView:
         self.net_pos_lbl = tk.Label(summary_frame, text="Net Position: $0", fg='white', bg='#111111',
                                     font=('Arial', 10, 'bold'), anchor="w")
         self.net_pos_lbl.pack(fill="x", pady=(2, 0))
-        tk.Frame(summary_frame, height=1, bg='#333333').pack(fill="x", pady=(4, 0))
+        tk.Frame(summary_frame, height=1, bg='#333333').pack(fill="x", pady=(4, 6))
+
+        tk.Button(
+            summary_frame, text="Reset to Budget Forecast",
+            command=self.reset_to_budget_forecast,
+            bg='#222222', fg='#00F0FF', activebackground='#333333', activeforeground='white',
+            font=('Arial', 8, 'bold'), bd=1, relief="solid", pady=3, cursor="hand2"
+        ).pack(fill="x", pady=(2, 2))
 
         actions_frame = tk.Frame(self.left_container, bg='#111111')
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
@@ -369,6 +377,25 @@ class MonthlyFinancialsView:
                 "exp_cats": {k: list(v) for k, v in base["exp_cats"].items()},
                 "other_cats": {k: list(v) for k, v in base["other_cats"].items()}
             })
+
+    def reset_to_budget_forecast(self):
+        """Prompts for confirmation and resets all 12 months to the active Budget's monthly forecast."""
+        if not messagebox.askyesno(
+            "Reset to Budget Forecast",
+            "Reset all 12 months to the active Budget Forecast?\n\n"
+            "Any imported Actuals or manual table edits on this screen will be replaced "
+            "(your saved CSV file will not be changed unless you click Create / Update CSV File)."
+        ):
+            return
+
+        budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
+                     self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
+        if budget_yr:
+            self.title_var.set(f"{budget_yr} Monthly Financial Results")
+
+        self.seed_from_active_budget()
+        self.rebuild_left_table()
+        self.redraw_chart()
 
     def apply_imported_financials(self, actuals_data, excel_budget_data):
         budget_tab_base = self.get_budget_monthly_baseline()
