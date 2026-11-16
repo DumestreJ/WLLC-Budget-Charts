@@ -64,6 +64,124 @@ class MonthlyFinancialsView:
             pass
         return None
 
+    def _sub_norm_key(self, s_lbl):
+        txt = re.sub(r'^\d+-', '', str(s_lbl).strip())
+        acct_m = re.match(r'^(\d{4}(?:\.\d+)?)\b', txt)
+        if acct_m:
+            return f"SUB_{acct_m.group(1)}"
+        txt = re.sub(r'^\d{4}(?:\.\d+)?\s*[·\-–]?\s*', '', txt)
+        return txt.strip().upper()
+
+    def _build_filtered_series(self, active_recs, is_cumulative, keep_individual=False):
+        """Builds filtered series list, monthly budget benchmark, and selection nature ('income', 'expense', or 'mixed')."""
+        if not getattr(self, 'selected_filter_items', None):
+            return None, 0.0, None
+
+        palette = ["#00F0FF", "#FF007F", "#00FF66", "#FFB800", "#B366FF", "#FF6600", "#33CCFF", "#FF66B2"]
+        raw_series = []
+        has_inc, has_exp = False, False
+
+        base = self.get_budget_monthly_baseline()
+
+        for idx, (target_nk, target_sub) in enumerate(self.selected_filter_items):
+            mo_vals = []
+            disp_label = target_sub or target_nk
+            item_is_exp = False
+            for r in active_recs:
+                val_sum = 0.0
+                for b_key, is_inc_bucket in (("inc_cats", True), ("other_cats", True), ("exp_cats", False)):
+                    for raw_cat, sub_items in r.get(b_key, {}).items():
+                        if self._category_norm_key(raw_cat) == target_nk:
+                            if is_inc_bucket:
+                                has_inc = True
+                            else:
+                                has_exp = True
+                                item_is_exp = True
+                            if target_sub is None:
+                                disp_label = self.clean_label(raw_cat)
+                                val_sum += sum(v for _, v in sub_items)
+                            else:
+                                for s_lbl, s_val in sub_items:
+                                    if self._sub_norm_key(s_lbl) == target_sub:
+                                        disp_label = self.clean_label(s_lbl)
+                                        val_sum += s_val
+                mo_vals.append(val_sum)
+
+            item_bud_mo = 0.0
+            for b_key in ("inc_cats", "other_cats", "exp_cats"):
+                for raw_cat, sub_items in base.get(b_key, {}).items():
+                    if self._category_norm_key(raw_cat) == target_nk:
+                        if target_sub is None:
+                            item_bud_mo += sum(v for _, v in sub_items)
+                        else:
+                            for s_lbl, s_val in sub_items:
+                                if self._sub_norm_key(s_lbl) == target_sub:
+                                    item_bud_mo += s_val
+
+            arr = np.cumsum(mo_vals) if is_cumulative else np.array(mo_vals, dtype=float)
+            item_col = ("#FF007F" if item_is_exp else "#00F0FF") if len(self.selected_filter_items) == 1 else palette[idx % len(palette)]
+            raw_series.append({"label": disp_label, "values": arr, "color": item_col, "is_exp": item_is_exp, "bud_mo": item_bud_mo})
+
+        sel_kind = "mixed" if (has_inc and has_exp) else ("expense" if has_exp else "income")
+
+        # Compute signed/unsigned monthly budget benchmark matching sel_kind
+        base = self.get_budget_monthly_baseline()
+        bud_mo_sum = 0.0
+        for target_nk, target_sub in self.selected_filter_items:
+            for b_key, is_inc_bucket in (("inc_cats", True), ("other_cats", True), ("exp_cats", False)):
+                sign = (-1.0 if (sel_kind == "mixed" and not is_inc_bucket) else 1.0)
+                for raw_cat, sub_items in base.get(b_key, {}).items():
+                    if self._category_norm_key(raw_cat) == target_nk:
+                        if target_sub is None:
+                            bud_mo_sum += sign * sum(v for _, v in sub_items)
+                        else:
+                            for s_lbl, s_val in sub_items:
+                                if self._sub_norm_key(s_lbl) == target_sub:
+                                    bud_mo_sum += sign * s_val
+
+        # In Mixed + Combined mode, negate expenses so combined total = Net Cash Impact (Income - Expenses)
+        if sel_kind == "mixed" and self.filter_combine_mode == "combined":
+            for s in raw_series:
+                if s["is_exp"]:
+                    s["values"] = -s["values"]
+
+        if not keep_individual and self.filter_combine_mode == "combined" and len(raw_series) > 1:
+            comb_col = "#00F0FF" if sel_kind == "income" else ("#FF007F" if sel_kind == "expense" else "#FFB800")
+            comb_lbl = f"Net Combined ({len(raw_series)} items)" if sel_kind == "mixed" else f"Combined ({len(raw_series)} items)"
+            combined_arr = np.sum([s["values"] for s in raw_series], axis=0)
+            return [{"label": comb_lbl, "values": combined_arr, "color": comb_col, "is_exp": (sel_kind == "expense")}], bud_mo_sum, sel_kind
+
+        return raw_series, bud_mo_sum, sel_kind
+
+    def redraw_chart(self, theme="dark"):
+        if not self.initialized or not self.records:
+            return
+        active_recs, months, inc_arr, exp_arr, is_fc_flags = self.get_active_series()
+        is_cumulative = self.chart_mode_var.get() == "Cumulative"
+        mode_tag = "Cumulative YTD" if is_cumulative else "Monthly"
+        surplus_tag = "Incl. PY Surplus" if self.include_surplus_var.get() else "Operating Only"
+
+        custom_series, filtered_bud_mo, sel_kind = self._build_filtered_series(active_recs, is_cumulative)
+        if custom_series:
+            monthly_budget_exp = filtered_bud_mo if (len(custom_series) == 1 or sel_kind in ("income", "expense")) else 0.0
+            monthly_budget_inc = 0.0
+        else:
+            base = self.get_budget_monthly_baseline()
+            monthly_budget_exp = base["expense"]
+            monthly_budget_inc = base["income"] + (base["other_income"] if self.include_surplus_var.get() else 0.0)
+
+        (self.ax_top, self.ax_bot, self.hover_vline_top, self.hover_vline_bot,
+         self.hover_dot_top, self.hover_dot_bot) = create_monthly_line_chart(
+            self.fig, months, inc_arr, exp_arr, is_fc_flags,
+            self.title_var.get(), mode_tag, surplus_tag,
+            theme=theme, monthly_budget=monthly_budget_exp,
+            monthly_budget_inc=monthly_budget_inc, is_cumulative=is_cumulative,
+            custom_series=custom_series, sel_kind=sel_kind,
+            show_filtered_budgets=self.show_filtered_budgets
+        )
+        if theme == "dark":
+            self.canvas.draw()
+
     def ensure_initialized(self):
         budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
                      self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
@@ -121,6 +239,180 @@ class MonthlyFinancialsView:
             return txt
         # Strip standard 4-digit account numbers (e.g., "6402 ", "6402 · ", "6050.05 ")
         return re.sub(r'^\d{4}(?:\.\d+)?\s*[·\-–]?\s*', '', txt).strip()
+
+    def open_filter_dialog(self):
+        """Opens a modeless, persistent checkbox tree dialog to select categories/subcategories
+        and immediately update the chart on each 'Apply Filter' click until closed.
+        """
+        if getattr(self, 'filter_dlg', None) and self.filter_dlg.winfo_exists():
+            self.filter_dlg.lift()
+            self.filter_dlg.focus_force()
+            return
+
+        dlg = tk.Toplevel(self.app.root)
+        self.filter_dlg = dlg
+        dlg.title("Filter Chart Categories & Subcategories")
+        dlg.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+        dlg.geometry("490x500")
+        dlg.transient(self.app.root)
+
+        mx = self.app.root.winfo_x() + (self.app.root.winfo_width() // 2) - 245
+        my = self.app.root.winfo_y() + (self.app.root.winfo_height() // 2) - 250
+        dlg.geometry(f"+{max(20, mx)}+{max(20, my)}")
+
+        tk.Label(dlg, text="SELECT CATEGORIES OR SUBCATEGORIES TO PLOT", bg='#1c1c1c', fg='#00F0FF',
+                 font=('Arial', 10, 'bold')).pack(pady=(12, 6))
+
+        mode_var = tk.StringVar(value=self.filter_combine_mode)
+        mode_bar = tk.Frame(dlg, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+        mode_bar.pack(fill="x", padx=18, pady=(0, 8))
+
+        def sync_and_redraw():
+            self.selected_filter_items = list(checked_set)
+            self.filter_combine_mode = mode_var.get()
+            self.show_filtered_budgets = show_bud_var.get()
+            cnt = len(self.selected_filter_items)
+            self.filter_btn_var.set("Filter Lines: All ▾" if cnt == 0 else f"Filter Lines: {cnt} Selected ▾")
+            self.redraw_chart()
+
+        tk.Radiobutton(mode_bar, text="Combined Total", variable=mode_var, value="combined",
+                       bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
+                       activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
+            side="left", padx=10, pady=5)
+        tk.Radiobutton(mode_bar, text="Separate Lines", variable=mode_var, value="separate",
+                       bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
+                       activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
+            side="left", padx=10, pady=5)
+
+        show_bud_var = tk.BooleanVar(value=self.show_filtered_budgets)
+        tk.Checkbutton(
+            mode_bar, text="Budget Lines", variable=show_bud_var,
+            bg='#141414', fg='#FFB800', selectcolor='#1e1e1e',
+            activebackground='#141414', activeforeground='white',
+            font=('Arial', 8, 'bold'), cursor="hand2",
+            command=sync_and_redraw
+        ).pack(side="right", padx=10, pady=5)
+
+        tree_frame = tk.Frame(dlg, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+        tree_frame.pack(fill="both", expand=True, padx=18, pady=4)
+
+        style = ttk.Style()
+        style.configure("Filter.Treeview", background="#141414", foreground="#e0e0e0",
+                        fieldbackground="#141414", rowheight=24, font=('Arial', 9))
+        style.map("Filter.Treeview", background=[('selected', '#263842')], foreground=[('selected', '#00F0FF')])
+
+        tree = ttk.Treeview(tree_frame, style="Filter.Treeview", show="tree")
+        v_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview, style="Dark.Vertical.TScrollbar")
+        tree.configure(yscrollcommand=v_scroll.set)
+        tree.pack(side="left", fill="both", expand=True)
+        v_scroll.pack(side="right", fill="y")
+        v_scroll.pack(side="right", fill="y")
+
+        # Gather unique categories and subcategories across all 12 months using normalized keys
+        hierarchy = {}  # norm_cat_key -> {"label": str, "is_inc": bool, "subs": {sub_norm: sub_lbl}}
+        for r in self.records:
+            for b_key, is_inc in (("inc_cats", True), ("other_cats", True), ("exp_cats", False)):
+                for raw_cat, sub_items in r.get(b_key, {}).items():
+                    nk = self._category_norm_key(raw_cat)
+                    cat_entry = hierarchy.setdefault(nk, {"label": self.clean_label(raw_cat), "is_inc": is_inc, "subs": {}})
+                    for s_lbl, _ in sub_items:
+                        s_norm = self._sub_norm_key(s_lbl)
+                        cat_entry["subs"].setdefault(s_norm, self.clean_label(s_lbl))
+
+        checked_set = set(self.selected_filter_items)
+        node_meta = {}       # tree_iid -> (norm_cat_key, sub_norm_or_None, display_label)
+        parent_children = {} # parent_iid -> list of child_iids
+        child_parent = {}    # child_iid -> parent_iid
+
+        inc_root = tree.insert("", "end", text="INCOME CATEGORIES", open=True)
+        exp_root = tree.insert("", "end", text="EXPENSE CATEGORIES", open=True)
+
+        for nk, info in hierarchy.items():
+            parent_root = inc_root if info["is_inc"] else exp_root
+            c_iid = tree.insert(parent_root, "end", text="☐  " + info["label"], open=False)
+            node_meta[c_iid] = (nk, None, info["label"])
+            parent_children[c_iid] = []
+
+            valid_subs = [(sn, sl) for sn, sl in info["subs"].items() if sl.upper() != info["label"].upper()]
+            # Migrate legacy parent tuple (nk, None) to all children if category has children
+            if valid_subs and (nk, None) in checked_set:
+                checked_set.discard((nk, None))
+                for sn, _ in valid_subs:
+                    checked_set.add((nk, sn))
+
+            for s_norm, s_lbl in valid_subs:
+                s_iid = tree.insert(c_iid, "end", text="☐  " + s_lbl)
+                node_meta[s_iid] = (nk, s_norm, s_lbl)
+                parent_children[c_iid].append(s_iid)
+                child_parent[s_iid] = c_iid
+
+        def refresh_tree_icons():
+            for c_iid, kids in parent_children.items():
+                nk, _, c_lbl = node_meta[c_iid]
+                if not kids:
+                    icon = "☑  " if (nk, None) in checked_set else "☐  "
+                    tree.item(c_iid, text=icon + c_lbl)
+                else:
+                    n_checked = sum(1 for k_iid in kids if (node_meta[k_iid][0], node_meta[k_iid][1]) in checked_set)
+                    for k_iid in kids:
+                        k_nk, k_sn, k_lbl = node_meta[k_iid]
+                        tree.item(k_iid, text=("☑  " if (k_nk, k_sn) in checked_set else "☐  ") + k_lbl)
+                    icon = "☑  " if n_checked == len(kids) else ("▣  " if n_checked > 0 else "☐  ")
+                    tree.item(c_iid, text=icon + c_lbl)
+
+        refresh_tree_icons()
+
+        def sync_and_redraw():
+            self.selected_filter_items = list(checked_set)
+            self.filter_combine_mode = mode_var.get()
+            cnt = len(self.selected_filter_items)
+            self.filter_btn_var.set("Filter Lines: All ▾" if cnt == 0 else f"Filter Lines: {cnt} Selected ▾")
+            self.redraw_chart()
+
+        def on_tree_click(event):
+            if tree.identify_element(event.x, event.y) == "Treeitem.indicator":
+                return
+            iid = tree.identify_row(event.y)
+            if not iid or iid not in node_meta:
+                return
+            nk, s_norm, _ = node_meta[iid]
+            if iid in parent_children:
+                kids = parent_children[iid]
+                if not kids:
+                    key_tup = (nk, None)
+                    checked_set.remove(key_tup) if key_tup in checked_set else checked_set.add(key_tup)
+                else:
+                    all_checked = all((node_meta[k][0], node_meta[k][1]) in checked_set for k in kids)
+                    for k in kids:
+                        k_tup = (node_meta[k][0], node_meta[k][1])
+                        checked_set.discard(k_tup) if all_checked else checked_set.add(k_tup)
+            else:
+                key_tup = (nk, s_norm)
+                checked_set.remove(key_tup) if key_tup in checked_set else checked_set.add(key_tup)
+            refresh_tree_icons()
+            sync_and_redraw()
+
+        tree.bind("<Button-1>", on_tree_click)
+
+        def clear_filter():
+            checked_set.clear()
+            refresh_tree_icons()
+            sync_and_redraw()
+
+        def close_dialog():
+            self.filter_dlg = None
+            if dlg.winfo_exists():
+                dlg.destroy()
+
+        btn_bar = tk.Frame(dlg, bg='#1c1c1c')
+        btn_bar.pack(side="bottom", pady=12)
+        tk.Button(btn_bar, text="Clear All", command=clear_filter, bg='#2a2a2a', fg='#FFB800',
+                  font=('Arial', 9, 'bold'), padx=14, pady=4, bd=0, cursor="hand2").pack(side="left", padx=8)
+        tk.Button(btn_bar, text="Close", command=close_dialog, bg='#00F0FF', fg='black',
+                  font=('Arial', 9, 'bold'), padx=16, pady=4, bd=0, cursor="hand2").pack(side="left", padx=8)
+
+        dlg.protocol("WM_DELETE_WINDOW", close_dialog)
+        dlg.bind("<Escape>", lambda e: close_dialog())
 
     def build_ui(self):
         # ---------------- LEFT PANEL ----------------
@@ -247,6 +539,19 @@ class MonthlyFinancialsView:
             state="readonly", font=('Arial', 9), width=22
         )
         profile_combo.pack(side="left", padx=(0, 12))
+
+        self.selected_filter_items = []
+        self.filter_combine_mode = "combined"
+        self.show_filtered_budgets = True
+        self.filter_btn_var = tk.StringVar(value="Filter Lines: All ▾")
+
+        self.filter_btn = tk.Button(
+            ctrl_bar, textvariable=self.filter_btn_var,
+            command=self.open_filter_dialog,
+            bg='#222222', fg='#00F0FF', activebackground='#333333', activeforeground='white',
+            font=('Arial', 8, 'bold'), bd=1, relief="solid", padx=8, pady=2, cursor="hand2"
+        )
+        self.filter_btn.pack(side="left", padx=(0, 10))
 
         mode_frame = tk.Frame(ctrl_bar, bg='#111111')
         mode_frame.pack(side="right")
@@ -395,6 +700,9 @@ class MonthlyFinancialsView:
 
         self.seed_from_active_budget()
         self.rebuild_left_table()
+        self.selected_filter_items = []
+        self.filter_combine_mode = "combined"
+        self.filter_btn_var.set("Filter Lines: All ▾")
         self.redraw_chart()
 
     def apply_imported_financials(self, actuals_data, excel_budget_data):
@@ -737,28 +1045,6 @@ class MonthlyFinancialsView:
         self.net_pos_lbl.config(text=net_txt, fg=net_fg)
         return active_recs, months, np.array(inc_vals), np.array(exp_vals), is_fc_flags
 
-    def redraw_chart(self, theme="dark"):
-        if not self.initialized or not self.records:
-            return
-        _, months, inc_arr, exp_arr, is_fc_flags = self.get_active_series()
-        is_cumulative = self.chart_mode_var.get() == "Cumulative"
-        mode_tag = "Cumulative YTD" if is_cumulative else "Monthly"
-        surplus_tag = "Incl. PY Surplus" if self.include_surplus_var.get() else "Operating Only"
-
-        base = self.get_budget_monthly_baseline()
-        monthly_budget_exp = base["expense"]
-        monthly_budget_inc = base["income"] + (base["other_income"] if self.include_surplus_var.get() else 0.0)
-
-        (self.ax_top, self.ax_bot, self.hover_vline_top, self.hover_vline_bot,
-         self.hover_dot_top, self.hover_dot_bot) = create_monthly_line_chart(
-            self.fig, months, inc_arr, exp_arr, is_fc_flags,
-            self.title_var.get(), mode_tag, surplus_tag,
-            theme=theme, monthly_budget=monthly_budget_exp,
-            monthly_budget_inc=monthly_budget_inc, is_cumulative=is_cumulative
-        )
-        if theme == "dark":
-            self.canvas.draw()
-
     def resolve_hovered_target(self, event):
         if not event.inaxes or not self.records or event.xdata is None or event.ydata is None:
             return None
@@ -767,12 +1053,31 @@ class MonthlyFinancialsView:
         if idx < 0 or idx >= len(active_recs):
             return None
 
-        # Bottom Net Profit/Loss Strip hovered
+        is_cum = self.chart_mode_var.get() == "Cumulative"
+        custom_series, bud_mo, sel_kind = self._build_filtered_series(active_recs, is_cum)
+        if custom_series:
+            if event.inaxes == self.ax_bot:
+                self.hovered_filtered_series = custom_series
+                if sel_kind == "mixed" and len(custom_series) > 1:
+                    bot_y = sum((-float(s["values"][idx]) if s.get("is_exp") else float(s["values"][idx])) for s in custom_series)
+                elif sel_kind in ("income", "expense"):
+                    bud_val = bud_mo * (idx + 1) if is_cum else bud_mo
+                    act_val = sum(float(s["values"][idx]) for s in custom_series)
+                    bot_y = (bud_val - act_val) if sel_kind == "expense" else (act_val - bud_val)
+                else:
+                    bot_y = sum(float(s["values"][idx]) for s in custom_series)
+                return idx, active_recs[idx], "Net", bot_y
+
+            nearest = min(custom_series, key=lambda s: abs(event.ydata - float(s["values"][idx])))
+            self.hovered_filtered_series = nearest
+            return idx, active_recs[idx], "Filtered", float(nearest["values"][idx])
+
+        # Bottom Net Profit/Loss Strip hovered (Default Composite / "All" mode)
         if event.inaxes == self.ax_bot:
             net_y = float(inc_arr[idx] - exp_arr[idx])
             return idx, active_recs[idx], "Net", net_y
 
-        # Top Gross Income vs. Expenses Panel hovered
+        # Top Gross Income vs. Expenses Panel hovered (Default Composite / "All" mode)
         inc_y, exp_y, cursor_y = inc_arr[idx], exp_arr[idx], event.ydata
         dist_inc, dist_exp = abs(cursor_y - inc_y), abs(cursor_y - exp_y)
         if abs(inc_y - exp_y) < 1.0 or abs(dist_inc - dist_exp) < 1.0:
@@ -808,6 +1113,55 @@ class MonthlyFinancialsView:
         profile = self.view_profile_var.get()
         is_cumulative = self.chart_mode_var.get() == "Cumulative"
         active_recs, _, inc_arr, exp_arr, _ = self.get_active_series()
+
+        if getattr(self, 'selected_filter_items', None):
+            indiv_series, bud_mo, sel_kind = self._build_filtered_series(active_recs, is_cumulative, keep_individual=True)
+            period_lbl = f"YTD thru {active_recs[target_idx]['month']}" if is_cumulative else active_recs[target_idx]['month']
+            recs_slice = active_recs[:target_idx + 1] if is_cumulative else [active_recs[target_idx]]
+
+            def _gather_subs(target_nk, target_sub, fallback_lbl, fallback_val):
+                subs_map = {}
+                if target_sub is None:
+                    for r in recs_slice:
+                        for b_key in ("inc_cats", "other_cats", "exp_cats"):
+                            for raw_cat, sub_items in r.get(b_key, {}).items():
+                                if self._category_norm_key(raw_cat) == target_nk:
+                                    for sl, sv in sub_items:
+                                        sc = self.clean_label(sl)
+                                        subs_map[sc] = subs_map.get(sc, 0.0) + sv
+                return subs_map if subs_map else {fallback_lbl: fallback_val}
+
+            if line_type == "Net":
+                if sel_kind == "mixed" and self.filter_combine_mode == "separate":
+                    net_val = sum((-float(s["values"][target_idx]) if s.get("is_exp") else float(s["values"][target_idx])) for s in indiv_series)
+                    rows = [(s["label"], (-float(s["values"][target_idx]) if s.get("is_exp") else float(s["values"][target_idx]))) for s in indiv_series]
+                    cats = [{"raw_key": l, "label": l, "total": v, "subs": {l: v}, "locked": False} for l, v in rows]
+                    return cats, f"Net Impact ({period_lbl})", net_val
+                act_val = sum(float(s["values"][target_idx]) for s in indiv_series)
+                mult = (target_idx + 1) if is_cumulative else 1
+                bud_val = bud_mo * mult
+                var_val = (bud_val - act_val) if sel_kind == "expense" else (act_val - bud_val)
+                rows = [("Filtered Actual", act_val), ("Budgeted Target", bud_val), ("Favorable / (Unfavorable)", var_val)]
+                cats = [{"raw_key": l, "label": l, "total": v, "subs": {l: v}, "locked": False} for l, v in rows]
+                return cats, f"Variance ({period_lbl})", var_val
+
+            if self.filter_combine_mode == "separate" and getattr(self, 'hovered_filtered_series', None):
+                hov = self.hovered_filtered_series
+                v = float(hov["values"][target_idx])
+                match_pair = next(((nk, sn) for s, (nk, sn) in zip(indiv_series, self.selected_filter_items) if s["label"] == hov["label"]), (None, None))
+                subs_map = _gather_subs(match_pair[0], match_pair[1], hov["label"], v) if match_pair[0] else {hov["label"]: v}
+                cats = [{"raw_key": hov["label"], "label": hov["label"], "total": v, "subs": subs_map, "locked": False}]
+                return cats, f"Total ({period_lbl})", v
+
+            cats = []
+            tot_val = 0.0
+            for s, (target_nk, target_sub) in zip(indiv_series, self.selected_filter_items):
+                v = float(s["values"][target_idx])
+                tot_val += v
+                subs_map = _gather_subs(target_nk, target_sub, s["label"], v)
+                cats.append({"raw_key": s["label"], "label": s["label"], "total": v, "subs": subs_map, "locked": False})
+            tot_lbl = f"Combined ({period_lbl})" if len(cats) > 1 else f"Total ({period_lbl})"
+            return cats, tot_lbl, tot_val
 
         # Dedicated Net Profit/Loss & Budget Variance Breakdown for Bottom Strip
         if line_type == "Net":
@@ -848,13 +1202,17 @@ class MonthlyFinancialsView:
 
         for r in recs_to_sum:
             if line_type == "Income":
-                buckets = [r.get("inc_cats", {})] + ([r.get("other_cats", {})] if self.include_surplus_var.get() else [])
+                raw_buckets = [r.get("inc_cats", {})] + ([r.get("other_cats", {})] if self.include_surplus_var.get() else [])
                 total_val += r["income"] + (r["other_income"] if self.include_surplus_var.get() else 0.0)
             else:
-                buckets = [r.get("exp_cats", {})]
+                raw_buckets = [r.get("exp_cats", {})]
                 total_val += r["expense"]
 
-            for bucket in buckets:
+            seen_ids = set()
+            for bucket in raw_buckets:
+                if id(bucket) in seen_ids:
+                    continue
+                seen_ids.add(id(bucket))
                 for cat_key, sub_items in bucket.items():
                     norm_key = self._category_norm_key(cat_key)
 
@@ -864,9 +1222,10 @@ class MonthlyFinancialsView:
                         cat_obj = {"raw_key": norm_key, "label": display_lbl, "total": 0.0, "subs": {}, "locked": (profile == "Public Mode (Hide Salaries)" and is_sens)}
                         cat_map[norm_key] = cat_obj
                         ordered_cats.append(cat_obj)
+
                     c_obj = cat_map[norm_key]
                     for s_lbl, s_val in sub_items:
-                        norm_sub = c_obj["label"] if norm_key.startswith("UNIFIED_") else self.clean_label(s_lbl)
+                        norm_sub = self.clean_label(s_lbl)
                         c_obj["total"] += s_val
                         c_obj["subs"][norm_sub] = c_obj["subs"].get(norm_sub, 0.0) + s_val
 
@@ -895,6 +1254,8 @@ class MonthlyFinancialsView:
         idx, rec, line_type, target_y = hit
         if line_type == "Net":
             border_color = '#00FF66' if target_y >= 0 else '#FF3300'
+        elif line_type == "Filtered" and getattr(self, 'hovered_filtered_series', None):
+            border_color = self.hovered_filtered_series.get("color", '#00F0FF')
         else:
             border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
 
@@ -933,15 +1294,39 @@ class MonthlyFinancialsView:
         self.tooltip_hint_lbl = tk.Label(self.tooltip, text="[Left-Click to Pin | Right-Click to Zoom]", bg='#e0e0e0', fg='#444444', font=('Arial', 8, 'italic'), padx=10)
         self.tooltip_hint_lbl.pack(fill="x", pady=(0, 8))
 
-        # Allow clicking directly on the pinned tooltip card itself to unpin it
+        # Allow dragging a frozen tooltip card to reposition it, or clicking to unpin
+        drag_state = {"x": 0, "y": 0, "moved": False}
+
+        def on_tip_press(e):
+            drag_state["x"] = e.x_root - self.tooltip.winfo_x()
+            drag_state["y"] = e.y_root - self.tooltip.winfo_y()
+            drag_state["moved"] = False
+
+        def on_tip_drag(e):
+            if not self.tooltip_frozen:
+                return
+            drag_state["moved"] = True
+            nx = e.x_root - drag_state["x"]
+            ny = e.y_root - drag_state["y"]
+            self.tooltip.wm_geometry(f"+{nx}+{ny}")
+
+        def on_tip_release(e):
+            if not drag_state["moved"]:
+                self.toggle_tooltip_freeze()
+
         for w in self.tooltip.winfo_children() + [self.tooltip]:
-            w.bind("<Button-1>", lambda e: self.toggle_tooltip_freeze())
+            w.bind("<ButtonPress-1>", on_tip_press)
+            w.bind("<B1-Motion>", on_tip_drag)
+            w.bind("<ButtonRelease-1>", on_tip_release)
 
         self.tooltip.update_idletasks()
         tip_w, tip_h = self.tooltip.winfo_reqwidth(), self.tooltip.winfo_reqheight()
         px, py = self.app.root.winfo_pointerx(), self.app.root.winfo_pointery()
         sw, sh = self.app.root.winfo_screenwidth(), self.app.root.winfo_screenheight()
-        self.tooltip.wm_geometry(f"+{px + (15 if px + 15 + tip_w <= sw else -(tip_w + 15))}+{py + (15 if py + 15 + tip_h <= sh else -(tip_h + 15))}")
+
+        pos_x = px + 15 if (px + 15 + tip_w <= sw) else max(10, px - tip_w - 15)
+        pos_y = py + 15 if (py + 15 + tip_h <= sh) else max(10, py - tip_h - 15)
+        self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
 
     def toggle_tooltip_freeze(self):
         if self.tooltip_frozen:
@@ -952,7 +1337,7 @@ class MonthlyFinancialsView:
         elif self.tooltip:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
-                self.tooltip_hint_lbl.config(text="[Pinned — Left-Click to Unpin]", fg='#006688')
+                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin | Right-Click to Zoom]", fg='#006688')
 
     def handle_click(self, event):
         if self.modal_active or self.view_profile_var.get() == "Silence All Tooltips":
@@ -1042,7 +1427,10 @@ class MonthlyFinancialsView:
             # Build display rows list: (label_str, val_float, is_cat_header, cat_raw_key, clickable)
             display_rows = []
             for c in cats:
-                has_subs = len(c["subs"]) > 1 or (len(c["subs"]) == 1 and list(c["subs"].keys())[0] != c["raw_key"])
+                sub_keys = list(c["subs"].keys())
+                has_subs = len(sub_keys) > 1 or (
+                    len(sub_keys) == 1 and self.clean_label(sub_keys[0]).strip().upper() != c["label"].strip().upper()
+                )
                 is_exp = c["raw_key"] in expanded_keys
                 prefix = "🔒 " if c["locked"] else (("▼ " if is_exp else "▶ ") if has_subs else "  ")
                 display_rows.append((f"{prefix}{c['label']}", c["total"], True, c["raw_key"], has_subs and not c["locked"]))
