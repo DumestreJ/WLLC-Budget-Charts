@@ -575,11 +575,31 @@ class BudgetView:
                                                  fg='#444444', font=('Arial', 8, 'italic'), padx=10)
                 self.tooltip_hint_lbl.pack(fill="x", pady=(0, 8))
 
-                # Allow clicking directly on the pinned tooltip card itself to unpin it
-                for widget in self.tooltip.winfo_children() + [self.tooltip]:
-                    widget.bind("<Button-1>", lambda e: self.toggle_tooltip_freeze())
+                # Allow dragging a pinned tooltip card to reposition it, or clicking to unpin
+                drag_state = {"x": 0, "y": 0, "moved": False}
 
-                # Safe fallbacks for right-clicking the floating card components directly
+                def on_tip_press(e):
+                    drag_state["x"] = e.x_root - self.tooltip.winfo_x()
+                    drag_state["y"] = e.y_root - self.tooltip.winfo_y()
+                    drag_state["moved"] = False
+
+                def on_tip_drag(e):
+                    if not self.tooltip_frozen:
+                        return
+                    drag_state["moved"] = True
+                    nx = e.x_root - drag_state["x"]
+                    ny = e.y_root - drag_state["y"]
+                    self.tooltip.wm_geometry(f"+{nx}+{ny}")
+
+                def on_tip_release(e):
+                    if not drag_state["moved"]:
+                        self.toggle_tooltip_freeze()
+
+                for widget in self.tooltip.winfo_children() + [self.tooltip]:
+                    widget.bind("<ButtonPress-1>", on_tip_press)
+                    widget.bind("<B1-Motion>", on_tip_drag)
+                    widget.bind("<ButtonRelease-1>", on_tip_release)
+
                 def force_popup_trigger(e):
                     self.trigger_sanctuary_zoom(display_cat_name, border_color, max_lbl_len, show_breakdown_rows,
                                                 cleaned_subs, remainder, expected_total)
@@ -597,13 +617,10 @@ class BudgetView:
                 screen_w = self.root.winfo_screenwidth()
                 screen_h = self.root.winfo_screenheight()
 
-                x_offset = 15
-                y_offset = 15
+                pos_x = pointer_x + 15 if (pointer_x + 15 + tip_w <= screen_w) else max(10, pointer_x - tip_w - 15)
+                pos_y = pointer_y + 15 if (pointer_y + 15 + tip_h <= screen_h) else max(10, pointer_y - tip_h - 15)
 
-                if pointer_x + x_offset + tip_w > screen_w: x_offset = -(tip_w + 15)
-                if pointer_y + y_offset + tip_h > screen_h: y_offset = -(tip_h + 15)
-
-                self.tooltip.wm_geometry(f"+{pointer_x + x_offset}+{pointer_y + y_offset}")
+                self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
                 break
 
     def toggle_tooltip_freeze(self):
@@ -615,7 +632,7 @@ class BudgetView:
         elif self.tooltip:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
-                self.tooltip_hint_lbl.config(text="[Pinned — Left-Click to Unpin]", fg='#006688')
+                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin]", fg='#006688')
 
     def handle_click(self, event, chart_type):
         """FEATURE IMPLEMENTATION: Intercepts single left-clicks to pin/unpin tooltips
