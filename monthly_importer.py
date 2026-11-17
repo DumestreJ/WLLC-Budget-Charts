@@ -170,7 +170,9 @@ def import_financial_spreadsheet(monthly_view):
         if budget_tab_name != "None (Use Budget Tab Average)" and budget_tab_name in wb.sheetnames:
             excel_budget_data = parse_budget_vs_actual_sheet(wb[budget_tab_name])
 
-        monthly_view.apply_imported_financials(actuals_data, excel_budget_data)
+        yr_m = re.search(r'\b(20\d{2})\b', f"{file_display_var.get()} {actual_var.get()}")
+        imp_yr = yr_m.group(1) if yr_m else None
+        monthly_view.apply_imported_financials(actuals_data, excel_budget_data, imported_year=imp_yr)
         if hasattr(monthly_view, 'data_source_var'):
             monthly_view.data_source_var.set(f"Source: {file_display_var.get()}")
     except Exception as e:
