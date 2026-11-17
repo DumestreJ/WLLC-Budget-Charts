@@ -21,6 +21,7 @@ class MonthlyFinancialsView:
         self.right_container = right_container
 
         self.initialized = False
+        self._last_render_sig = None
         self.tooltip = None
         self.tooltip_frozen = False
         self.tooltip_hint_lbl = None
@@ -154,9 +155,42 @@ class MonthlyFinancialsView:
 
         return raw_series, bud_mo_sum, sel_kind
 
-    def redraw_chart(self, theme="dark"):
+    def _compute_render_signature(self, theme="dark"):
+        """Builds a lightweight immutable fingerprint of all data and controls affecting the chart."""
+        rec_sig = tuple(
+            (r["month"], round(r["income"], 2), round(r["expense"], 2), round(r["other_income"], 2), r["is_forecast"])
+            for r in self.records
+        )
+        base = self.get_budget_monthly_baseline()
+        cat_snap = tuple(
+            (b_key, k, tuple((sl, round(sv, 2)) for sl, sv in subs))
+            for b_key in ("inc_cats", "other_cats", "exp_cats")
+            for k, subs in sorted(base[b_key].items())
+        )
+        bud_sig = (round(base["income"], 2), round(base["expense"], 2), round(base["other_income"], 2), cat_snap)
+        filt_sig = (
+            tuple(sorted(getattr(self, 'selected_filter_items', []))),
+            getattr(self, 'filter_combine_mode', 'combined'),
+            getattr(self, 'show_filtered_budgets', True),
+        )
+        return (
+            theme,
+            self.title_var.get(),
+            self.chart_mode_var.get(),
+            self.include_surplus_var.get(),
+            rec_sig,
+            bud_sig,
+            filt_sig,
+        )
+
+    def redraw_chart(self, theme="dark", force=False):
         if not self.initialized or not self.records:
             return
+        sig = self._compute_render_signature(theme)
+        if not force and getattr(self, '_last_render_sig', None) == sig:
+            return
+        self._last_render_sig = sig
+
         active_recs, months, inc_arr, exp_arr, is_fc_flags = self.get_active_series()
         is_cumulative = self.chart_mode_var.get() == "Cumulative"
         mode_tag = "Cumulative YTD" if is_cumulative else "Monthly"
@@ -178,7 +212,7 @@ class MonthlyFinancialsView:
             theme=theme, monthly_budget=monthly_budget_exp,
             monthly_budget_inc=monthly_budget_inc, is_cumulative=is_cumulative,
             custom_series=custom_series, sel_kind=sel_kind,
-            show_filtered_budgets=self.show_filtered_budgets
+            show_filtered_budgets=getattr(self, 'show_filtered_budgets', True)
         )
         if theme == "dark":
             self.canvas.draw()
@@ -198,10 +232,8 @@ class MonthlyFinancialsView:
                 )
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
                 self.seed_from_active_budget()
-                self.seed_from_active_budget()
                 if hasattr(self, 'data_source_var'):
                     self.data_source_var.set("Source: Budget Forecast")
-                self.rebuild_left_table()
                 self.rebuild_left_table()
             self.redraw_chart()
             return
@@ -498,7 +530,7 @@ class MonthlyFinancialsView:
                   bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
-        tk.Button(actions_frame, text="Update Chart", command=self.redraw_chart,
+        tk.Button(actions_frame, text="Update Chart", command=lambda: self.redraw_chart(force=True),
                   bg='#00F0FF', fg='black', activebackground='#66f5ff', activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
@@ -1512,9 +1544,9 @@ class MonthlyFinancialsView:
         if not chosen["theme"]: return
         out_path = os.path.join(os.path.expanduser("~"), "Desktop", "monthly_financials_chart.png")
         try:
-            self.redraw_chart(theme=chosen["theme"])
+            self.redraw_chart(theme=chosen["theme"], force=True)
             self.fig.savefig(out_path, dpi=200, transparent=(chosen["theme"] == "transparent"), facecolor=self.fig.get_facecolor())
-            self.redraw_chart(theme="dark")
+            self.redraw_chart(theme="dark", force=True)
             messagebox.showinfo("Exported", f"Chart saved to Desktop:\n\n{out_path}")
         except Exception as e:
-            self.redraw_chart(theme="dark"); messagebox.showerror("Export Error", str(e))
+            self.redraw_chart(theme="dark", force=True); messagebox.showerror("Export Error", str(e))
