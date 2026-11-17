@@ -218,27 +218,31 @@ class MonthlyFinancialsView:
             self.canvas.draw()
 
     def ensure_initialized(self, silent=False):
-        budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
-                     self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
+        inc_t = getattr(self.app, 'income_title_var', getattr(self.app.budget_view, 'income_title_var', tk.StringVar())).get()
+        exp_t = getattr(self.app, 'expense_title_var', getattr(self.app.budget_view, 'expense_title_var', tk.StringVar())).get()
+        budget_yr = self._extract_year(inc_t) or self._extract_year(exp_t)
 
         # Case 1: Already initialized earlier in this session — check if Budget year changed
         if self.initialized:
             cur_fin_yr = self._extract_year(self.title_var.get())
             if budget_yr and cur_fin_yr and budget_yr != cur_fin_yr:
                 if silent:
-                    return
-                messagebox.showinfo(
+                    return False
+                proceed = messagebox.askyesno(
                     "Budget Year Changed",
-                    f"Active Budget is now {budget_yr} (Monthly Financials was showing {cur_fin_yr}).\n\n"
-                    f"Resetting Monthly Financials to {budget_yr} Budget Forecast data."
+                    f"Active Budget is now {budget_yr} (Monthly Financials is showing {cur_fin_yr}).\n\n"
+                    f"Click 'Yes' to reset Monthly Financials to {budget_yr} Budget Forecast data.\n"
+                    f"Click 'No' to cancel and stay on the Budget tab."
                 )
+                if not proceed:
+                    return False
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
                 self.seed_from_active_budget()
                 if hasattr(self, 'data_source_var'):
                     self.data_source_var.set("Source: Budget Forecast")
                 self.rebuild_left_table()
             self.redraw_chart()
-            return
+            return True
 
         # Case 2: First-time initialization in this session
         csv_path = os.path.join(getattr(self.app, 'last_import_dir', os.getcwd()) or os.getcwd(),
@@ -251,7 +255,7 @@ class MonthlyFinancialsView:
             csv_yr = self._peek_csv_year(csv_path)
             if budget_yr and csv_yr and budget_yr != csv_yr:
                 if silent:
-                    return
+                    return False
                 messagebox.showinfo(
                     "Fiscal Year Mismatch",
                     f"Saved monthly_financials.csv is for {csv_yr}, while the active Budget is for {budget_yr}.\n\n"
@@ -273,6 +277,7 @@ class MonthlyFinancialsView:
 
         self.rebuild_left_table()
         self.redraw_chart()
+        return True
 
     def clean_label(self, raw_text):
         txt = str(raw_text).strip()
@@ -762,7 +767,26 @@ class MonthlyFinancialsView:
         self.filter_btn_var.set("Filter Lines: All ▾")
         self.redraw_chart()
 
-    def apply_imported_financials(self, actuals_data, excel_budget_data):
+    def apply_imported_financials(self, actuals_data, excel_budget_data, imported_year=None):
+        imp_yr = imported_year or self._extract_year(str(actuals_data.get("title", "")))
+        budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
+                     self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
+
+        if imp_yr and budget_yr and imp_yr != budget_yr:
+            proceed = messagebox.askyesno(
+                "Fiscal Year Mismatch Warning",
+                f"The Financial spreadsheet you are importing is for {imp_yr}, while the active Budget tab is for {budget_yr}.\n\n"
+                f"Because Monthly Financials uses the active Budget tab for its dashed Budget target lines, "
+                f"comparing {imp_yr} actuals against {budget_yr} budget targets may be misleading.\n\n"
+                f"Do you still want to load the {imp_yr} Financial data now?\n"
+                f"(Tip: Import or load the {imp_yr} Budget on the Budget tab first for accurate {imp_yr} variance tracking.)"
+            )
+            if not proceed:
+                return
+
+        if imp_yr:
+            self.title_var.set(f"{imp_yr} Monthly Financial Results")
+
         budget_tab_base = self.get_budget_monthly_baseline()
 
         if excel_budget_data and excel_budget_data["ordered_months"]:
@@ -818,6 +842,7 @@ class MonthlyFinancialsView:
 
         self.records = new_records
         self.rebuild_left_table()
+        self._last_render_sig = None
         self.redraw_chart()
 
     def on_surplus_toggle(self):
