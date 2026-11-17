@@ -93,6 +93,11 @@ class ChurchFinanceApp:
     def switch_mode(self, mode):
         if self.active_mode_var.get() == mode:
             return
+
+        if mode != "Budget":
+            if not self.monthly_view.ensure_initialized():
+                return
+
         self.dismiss_all_tooltips()
         self.active_mode_var.set(mode)
 
@@ -132,8 +137,6 @@ class ChurchFinanceApp:
                 self.fin_left_frame.pack(side="top", fill="both", expand=True)
                 self.fin_right_frame.grid(row=0, column=0, sticky="nsew")
                 busy_right.lift()
-
-                self.monthly_view.ensure_initialized()
 
                 # 3. Force Tkinter to finish stretching the canvas & bottom controls before revealing
                 self.root.update_idletasks()
