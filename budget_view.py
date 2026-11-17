@@ -81,6 +81,14 @@ class BudgetView:
         """Creates a dynamic scrollable left panel that hugs its content height on tall screens,
         keeping the Net Position summary immediately beneath the Income/Expense lists.
         """
+
+        # Data Source Indicator Banner (Top of Left Panel)
+        self.data_source_var = tk.StringVar(value="Source: Default")
+        src_bar = tk.Frame(self.left_panel, bg='#1a1a1a', highlightbackground='#333333', highlightthickness=1)
+        src_bar.pack(side="top", fill="x", padx=5, pady=(8, 2))
+        tk.Label(src_bar, textvariable=self.data_source_var, bg='#1a1a1a', fg='#00F0FF',
+                 font=('Arial', 8, 'bold'), anchor="w", padx=4, pady=3).pack(fill="x")
+
         # ZONE 1: THE DYNAMIC SCROLLABLE VIEWPORT CANVAS DECK (TOP AREA)
         # This frame shrinks to wrap its content tightly
         scroll_outer_frame = tk.Frame(self.left_panel, bg='#111111')
@@ -120,8 +128,8 @@ class BudgetView:
 
             content_h = self.scrollable_inner_frame.winfo_reqheight()
 
-            # Reserve vertical room for Net Summary (~55px) + 4 Action Buttons (~195px) + Padding (~30px)
-            reserved_bottom_h = 280
+            # Reserve vertical room for Date Source Text (25px) + Net Summary (~55px) + 4 Action Buttons (~195px) + Padding (~30px)
+            reserved_bottom_h = 305
             max_canvas_h = max(100, panel_h - reserved_bottom_h)
 
             if content_h <= max_canvas_h:
@@ -1156,6 +1164,9 @@ class BudgetView:
             self.expense_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
 
             self.process_inputs()
+            if hasattr(self, 'data_source_var'):
+                self.data_source_var.set("Source: CSV File")
+
         except Exception as e:
             messagebox.showerror("CSV Load Error", f"Could not parse CSV:\n{str(e)}")
             self.load_hardcoded_defaults()
@@ -1198,6 +1209,8 @@ class BudgetView:
         self.income_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
         self.expense_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
         self.process_inputs(is_live=False)
+        if hasattr(self, 'data_source_var'):
+            self.data_source_var.set("Source: Default")
 
     def process_inputs(self, is_live=False):
         if hasattr(self, 'is_updating') and self.is_updating:

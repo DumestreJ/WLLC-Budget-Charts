@@ -36,6 +36,7 @@ class MonthlyFinancialsView:
         self.hover_dot_bot = None
 
         self.title_var = tk.StringVar(value="2026 Monthly Financial Results")
+        self.data_source_var = tk.StringVar(value="Source: Default")
         self.include_surplus_var = tk.BooleanVar(value=True)
         self.show_forecast_var = tk.BooleanVar(value=True)
         self.chart_mode_var = tk.StringVar(value="Cumulative")
@@ -197,6 +198,10 @@ class MonthlyFinancialsView:
                 )
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
                 self.seed_from_active_budget()
+                self.seed_from_active_budget()
+                if hasattr(self, 'data_source_var'):
+                    self.data_source_var.set("Source: Budget Forecast")
+                self.rebuild_left_table()
                 self.rebuild_left_table()
             self.redraw_chart()
             return
@@ -227,6 +232,9 @@ class MonthlyFinancialsView:
             if budget_yr:
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
             self.seed_from_active_budget()
+            if hasattr(self, 'data_source_var'):
+                self.data_source_var.set("Source: Budget Forecast")
+            self.rebuild_left_table()
 
         self.rebuild_left_table()
         self.redraw_chart()
@@ -253,7 +261,7 @@ class MonthlyFinancialsView:
         self.filter_dlg = dlg
         dlg.title("Filter Chart Categories & Subcategories")
         dlg.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
-        dlg.geometry("490x500")
+        dlg.geometry("410x500")
         dlg.transient(self.app.root)
 
         mx = self.app.root.winfo_x() + (self.app.root.winfo_width() // 2) - 245
@@ -278,11 +286,11 @@ class MonthlyFinancialsView:
         tk.Radiobutton(mode_bar, text="Combined Total", variable=mode_var, value="combined",
                        bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
                        activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
-            side="left", padx=10, pady=5)
+            side="left", padx=0, pady=5)
         tk.Radiobutton(mode_bar, text="Separate Lines", variable=mode_var, value="separate",
                        bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
                        activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
-            side="left", padx=10, pady=5)
+            side="left", padx=0, pady=5)
 
         show_bud_var = tk.BooleanVar(value=self.show_filtered_budgets)
         tk.Checkbutton(
@@ -416,6 +424,12 @@ class MonthlyFinancialsView:
 
     def build_ui(self):
         # ---------------- LEFT PANEL ----------------
+        # Data Source Indicator Banner (Top of Left Panel)
+        src_bar = tk.Frame(self.left_container, bg='#1a1a1a', highlightbackground='#333333', highlightthickness=1)
+        src_bar.pack(side="top", fill="x", padx=11, pady=(8, 2))
+        tk.Label(src_bar, textvariable=self.data_source_var, bg='#1a1a1a', fg='#00F0FF',
+                 font=('Arial', 8, 'bold'), anchor="w", padx=0, pady=3).pack(fill="x")
+
         title_box = tk.Frame(self.left_container, bg='#111111')
         title_box.pack(side="top", fill="x", padx=12, pady=(8, 4))
         tk.Label(title_box, text="FINANCIAL CHART TITLE", fg='#00F0FF', bg='#111111',
@@ -699,6 +713,7 @@ class MonthlyFinancialsView:
             self.title_var.set(f"{budget_yr} Monthly Financial Results")
 
         self.seed_from_active_budget()
+        self.data_source_var.set("Source: Budget Forecast")
         self.rebuild_left_table()
         self.selected_filter_items = []
         self.filter_combine_mode = "combined"
@@ -996,6 +1011,7 @@ class MonthlyFinancialsView:
                             rec_map[mo][b_key].setdefault(row['Category'], []).append((row['Subcategory'], float(row['Amount'] or 0.0)))
             if ordered_mos:
                 self.records = [rec_map[m] for m in ordered_mos]
+            self.data_source_var.set("Source: CSV File")
         except Exception as e:
             messagebox.showerror("Load Error", f"Could not load monthly_financials.csv:\n{str(e)}")
             self.seed_from_active_budget()

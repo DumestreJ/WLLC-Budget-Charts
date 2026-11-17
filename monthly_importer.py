@@ -171,6 +171,8 @@ def import_financial_spreadsheet(monthly_view):
             excel_budget_data = parse_budget_vs_actual_sheet(wb[budget_tab_name])
 
         monthly_view.apply_imported_financials(actuals_data, excel_budget_data)
+        if hasattr(monthly_view, 'data_source_var'):
+            monthly_view.data_source_var.set(f"Source: {file_display_var.get()}")
     except Exception as e:
         messagebox.showerror("Parse Error", f"Failed to parse financial statement layout:\n{str(e)}")
 

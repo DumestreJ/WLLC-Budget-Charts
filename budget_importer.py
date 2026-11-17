@@ -589,6 +589,8 @@ def import_excel_budget(app):
                                 child.config(disabledforeground='#FF007F', fg='#FF007F')
 
         app.process_inputs()
+        if hasattr(app, 'data_source_var'):
+            app.data_source_var.set(f"Source: {file_display_var.get()}")
 
         # Reset Monthly Financials to default Forecast whenever a new Budget is imported
         if hasattr(app, 'monthly_view') and app.monthly_view:
