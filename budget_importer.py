@@ -596,6 +596,9 @@ def import_excel_budget(app):
         if hasattr(app, 'monthly_view') and app.monthly_view:
             mv = app.monthly_view
             mv.force_forecast_reset = True
+            mv._last_render_sig = None
+            if hasattr(mv, 'data_source_var'):
+                mv.data_source_var.set("Source: Budget Forecast")
             if getattr(mv, 'initialized', False):
                 yr_m = re.search(r'\b(20\d{2})\b', app.income_title_var.get())
                 if yr_m:
