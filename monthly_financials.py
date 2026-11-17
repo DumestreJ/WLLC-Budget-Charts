@@ -824,7 +824,8 @@ class MonthlyFinancialsView:
         """Updates displayed monthly Income entries in the left table and redraws the chart."""
         self._suppress_live_trace = True
         inc_surplus = self.include_surplus_var.get()
-        for idx, (mo_v, inc_v, exp_v, fc_v) in enumerate(self.row_widgets):
+        for idx, row_t in enumerate(self.row_widgets):
+            mo_v, inc_v, exp_v, fc_v = row_t[:4]
             if idx >= len(self.records):
                 break
             rec = self.records[idx]
@@ -834,9 +835,6 @@ class MonthlyFinancialsView:
         self.redraw_chart()
 
     def rebuild_left_table(self):
-        for w in self.rows_inner_frame.winfo_children():
-            w.destroy()
-        self.row_widgets = []
         self._suppress_live_trace = True
         inc_surplus = self.include_surplus_var.get()
 
@@ -850,6 +848,28 @@ class MonthlyFinancialsView:
                     "expense": rec["expense"],
                     "is_forecast": rec["is_forecast"]
                 }
+
+        # Fast-path: update existing row widgets in-place whenever row count matches
+        if getattr(self, 'row_widgets', None) and len(self.row_widgets) == len(self.records):
+            for idx, rec in enumerate(self.records):
+                mo_var, inc_var, exp_var, fc_var, ent_mo, type_btn = self.row_widgets[idx]
+                disp_inc = rec["income"] + (rec["other_income"] if inc_surplus else 0.0)
+                mo_var.set(rec["month"])
+                inc_var.set(f"{disp_inc:.0f}")
+                exp_var.set(f"{rec['expense']:.0f}")
+                fc_var.set(rec["is_forecast"])
+                ent_mo.config(fg='#888888' if rec["is_forecast"] else 'white')
+                type_btn.config(
+                    text="Fcst" if rec["is_forecast"] else "Act",
+                    fg='#ffaa00' if rec["is_forecast"] else '#00FF66'
+                )
+            self._suppress_live_trace = False
+            self.sync_left_scroll_height()
+            return
+
+        for w in self.rows_inner_frame.winfo_children():
+            w.destroy()
+        self.row_widgets = []
 
         def show_row_context_menu(event, r_idx):
             menu = tk.Menu(self.app.root, tearoff=0, bg='#1e1e1e', fg='white',
@@ -865,7 +885,7 @@ class MonthlyFinancialsView:
                 self.records[r_idx]["income"] = 0.0
                 self.records[r_idx]["other_income"] = 0.0
                 self.records[r_idx]["expense"] = 0.0
-                _, inc_v, exp_v, _ = self.row_widgets[r_idx]
+                _, inc_v, exp_v, _, _, _ = self.row_widgets[r_idx]
                 inc_v.set("0")
                 exp_v.set("0")
                 self._suppress_live_trace = False
@@ -880,12 +900,14 @@ class MonthlyFinancialsView:
                 self.records[r_idx]["other_income"] = snap.get("other_income", 0.0)
                 self.records[r_idx]["expense"] = snap["expense"]
                 self.records[r_idx]["is_forecast"] = snap["is_forecast"]
-                mo_v, inc_v, exp_v, fc_v = self.row_widgets[r_idx]
+                mo_v, inc_v, exp_v, fc_v, ent_mo, type_btn = self.row_widgets[r_idx]
                 disp_i = snap["income"] + (snap.get("other_income", 0.0) if self.include_surplus_var.get() else 0.0)
                 mo_v.set(snap["month"])
                 inc_v.set(f"{disp_i:.0f}")
                 exp_v.set(f"{snap['expense']:.0f}")
                 fc_v.set(snap["is_forecast"])
+                ent_mo.config(fg='#888888' if snap["is_forecast"] else 'white')
+                type_btn.config(text="Fcst" if snap["is_forecast"] else "Act", fg='#ffaa00' if snap["is_forecast"] else '#00FF66')
                 self._suppress_live_trace = False
                 self.redraw_chart()
 
@@ -893,7 +915,7 @@ class MonthlyFinancialsView:
             if getattr(self, '_suppress_live_trace', False) or r_idx >= len(self.records):
                 return
             rec = self.records[r_idx]
-            mo_v, inc_v, exp_v, fc_v = self.row_widgets[r_idx]
+            mo_v, inc_v, exp_v, _, _, _ = self.row_widgets[r_idx]
             rec["month"] = mo_v.get().strip() or rec["month"]
             try:
                 typed_inc = float(inc_v.get().replace(',', '') or 0.0)
@@ -936,18 +958,20 @@ class MonthlyFinancialsView:
                                bd=1, relief="solid", font=('Arial', 8, 'bold'), width=7, justify="right")
             ent_exp.grid(row=0, column=2, sticky="ew", padx=2)
 
-            def toggle_forecast_flag(r_idx=idx, var=fc_var, btn=None):
+            def toggle_forecast_flag(r_idx=idx, var=fc_var, btn=None, m_ent=None):
                 new_state = not var.get()
                 var.set(new_state)
                 self.records[r_idx]["is_forecast"] = new_state
                 if btn:
                     btn.config(text="Fcst" if new_state else "Act", fg='#ffaa00' if new_state else '#00FF66')
+                if m_ent:
+                    m_ent.config(fg='#888888' if new_state else 'white')
                 self.redraw_chart()
 
             type_btn = tk.Button(row_f, text="Fcst" if rec["is_forecast"] else "Act", bg='#1e1e1e',
                                  fg='#ffaa00' if rec["is_forecast"] else '#00FF66',
                                  font=('Arial', 7, 'bold'), bd=0, width=4, cursor="hand2")
-            type_btn.config(command=lambda i=idx, v=fc_var, b=type_btn: toggle_forecast_flag(i, v, b))
+            type_btn.config(command=lambda i=idx, v=fc_var, b=type_btn, m=ent_mo: toggle_forecast_flag(i, v, b, m))
             type_btn.grid(row=0, column=3, sticky="ew", padx=2)
 
             for w in (row_f, ent_mo, ent_inc, ent_exp, type_btn):
@@ -957,14 +981,15 @@ class MonthlyFinancialsView:
             inc_var.trace_add("write", lambda *args, i=idx: on_live_edit(i))
             exp_var.trace_add("write", lambda *args, i=idx: on_live_edit(i))
 
-            self.row_widgets.append((mo_var, inc_var, exp_var, fc_var))
+            self.row_widgets.append((mo_var, inc_var, exp_var, fc_var, ent_mo, type_btn))
 
         self._suppress_live_trace = False
         self.sync_left_scroll_height()
 
     def sync_from_entries_and_redraw(self):
         inc_surplus = self.include_surplus_var.get()
-        for idx, (mo_v, inc_v, exp_v, fc_v) in enumerate(self.row_widgets):
+        for idx, row_t in enumerate(self.row_widgets):
+            mo_v, inc_v, exp_v, fc_v = row_t[:4]
             if idx >= len(self.records):
                 break
             rec = self.records[idx]
