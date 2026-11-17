@@ -469,7 +469,14 @@ class MonthlyFinancialsView:
         title_ent = tk.Entry(title_box, textvariable=self.title_var, bg='#1e1e1e', fg='white',
                              insertbackground='white', bd=1, relief="solid", font=('Arial', 9, 'bold'))
         title_ent.pack(fill="x", pady=(2, 4))
-        self.title_var.trace_add("write", lambda *args: self.redraw_chart())
+        self._title_debounce_id = None
+
+        def on_title_change(*args):
+            if self._title_debounce_id:
+                self.app.root.after_cancel(self._title_debounce_id)
+            self._title_debounce_id = self.app.root.after(250, self.redraw_chart)
+
+        self.title_var.trace_add("write", on_title_change)
 
         # Table Column Headers (Grid-aligned with data rows below)
         hdr_frame = tk.Frame(self.left_container, bg='#1a1a1a')
