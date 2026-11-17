@@ -167,11 +167,20 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
     pos_color = "#009944" if is_light else "#00FF66"
     bud_color = "#B37700" if is_light else "#FFB800"
 
-    fig.clf()
     fig.patch.set_facecolor(bg_color)
-    gs = fig.add_gridspec(2, 1, height_ratios=[2.6, 1.0], hspace=0.14)
-    ax_top = fig.add_subplot(gs[0])
-    ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+    if len(fig.axes) == 2:
+        fig.texts.clear()
+        fig.legends.clear()
+        ax_top, ax_bot = fig.axes[0], fig.axes[1]
+        ax_top.cla()
+        ax_bot.cla()
+    else:
+        fig.clf()
+        fig.patch.set_facecolor(bg_color)
+        gs = fig.add_gridspec(2, 1, height_ratios=[2.6, 1.0], hspace=0.14)
+        ax_top = fig.add_subplot(gs[0])
+        ax_bot = fig.add_subplot(gs[1], sharex=ax_top)
+
     for ax in (ax_top, ax_bot):
         ax.set_facecolor(bg_color)
 
