@@ -58,6 +58,9 @@ class ChurchFinanceApp:
         # Instantiate both self-contained views
         self.budget_view = BudgetView(self, self.budget_left_frame, self.budget_right_frame)
         self.monthly_view = MonthlyFinancialsView(self, self.fin_left_frame, self.fin_right_frame)
+        if getattr(self, 'monthly_view', None):
+            self.root.after(400, lambda: self.monthly_view.ensure_initialized(silent=True))
+
 
     @property
     def last_import_dir(self):

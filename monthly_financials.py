@@ -217,7 +217,7 @@ class MonthlyFinancialsView:
         if theme == "dark":
             self.canvas.draw()
 
-    def ensure_initialized(self):
+    def ensure_initialized(self, silent=False):
         budget_yr = (self._extract_year(getattr(self.app.budget_view, 'income_title_var', tk.StringVar()).get()) or
                      self._extract_year(getattr(self.app.budget_view, 'expense_title_var', tk.StringVar()).get()))
 
@@ -225,6 +225,8 @@ class MonthlyFinancialsView:
         if self.initialized:
             cur_fin_yr = self._extract_year(self.title_var.get())
             if budget_yr and cur_fin_yr and budget_yr != cur_fin_yr:
+                if silent:
+                    return
                 messagebox.showinfo(
                     "Budget Year Changed",
                     f"Active Budget is now {budget_yr} (Monthly Financials was showing {cur_fin_yr}).\n\n"
@@ -239,8 +241,6 @@ class MonthlyFinancialsView:
             return
 
         # Case 2: First-time initialization in this session
-        self.initialized = True
-
         csv_path = os.path.join(getattr(self.app, 'last_import_dir', os.getcwd()) or os.getcwd(),
                                 "monthly_financials.csv")
         if not os.path.exists(csv_path):
@@ -250,6 +250,8 @@ class MonthlyFinancialsView:
         if os.path.exists(csv_path) and not getattr(self, 'force_forecast_reset', False):
             csv_yr = self._peek_csv_year(csv_path)
             if budget_yr and csv_yr and budget_yr != csv_yr:
+                if silent:
+                    return
                 messagebox.showinfo(
                     "Fiscal Year Mismatch",
                     f"Saved monthly_financials.csv is for {csv_yr}, while the active Budget is for {budget_yr}.\n\n"
@@ -259,14 +261,15 @@ class MonthlyFinancialsView:
                 self.load_from_csv(csv_path)
                 loaded_from_csv = True
 
+        self.initialized = True
         self.force_forecast_reset = False
         if not loaded_from_csv:
             if budget_yr:
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
             self.seed_from_active_budget()
-            if hasattr(self, 'data_source_var'):
-                self.data_source_var.set("Source: Budget Forecast")
-            self.rebuild_left_table()
+
+        if hasattr(self, 'data_source_var'):
+            self.data_source_var.set("Source: CSV" if loaded_from_csv else "Source: Budget Forecast")
 
         self.rebuild_left_table()
         self.redraw_chart()
