@@ -178,6 +178,7 @@ class MonthlyFinancialsView:
             self.title_var.get(),
             self.chart_mode_var.get(),
             self.include_surplus_var.get(),
+            self.show_forecast_var.get(),
             rec_sig,
             bud_sig,
             filt_sig,
@@ -1470,6 +1471,7 @@ class MonthlyFinancialsView:
 
         cats, tot_label, total_val = self.get_aggregated_categories(idx, line_type)
         expanded_keys = set()
+        manual_sized = {"active": False}
 
         if line_type == "Net":
             border_color = '#00FF66' if total_val >= 0 else '#FF3300'
@@ -1497,10 +1499,34 @@ class MonthlyFinancialsView:
             self.modal_active = False
 
         footer = tk.Frame(self.zoom_modal, bg='#161616')
-        footer.pack(side="bottom", fill="x", pady=(6, 16))
-        hint_lbl = tk.Label(footer, text="Click Category to Expand/Collapse  |  Wheel or ↑/↓ to Resize Text  |  ESC to Close", bg='#161616', fg='#777777', font=('Arial', 9, 'italic'))
-        hint_lbl.pack(side="top", pady=(0, 8))
-        tk.Button(footer, text="[ Close Ledger View ]", command=close_modal, bg='#161616', fg='#aaaaaa', font=('Arial', 12, 'bold'), bd=0, cursor="hand2").pack(side="top")
+        footer.pack(side="bottom", fill="x", pady=(6, 10))
+
+        grip = tk.Label(footer, text="◢", bg='#161616', fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
+        grip.pack(side="right", anchor="se", padx=(0, 6))
+
+        drag_resize = {"x": 0, "y": 0, "w": 0, "h": 0}
+        def on_grip_press(e):
+            drag_resize["x"], drag_resize["y"] = e.x_root, e.y_root
+            drag_resize["w"], drag_resize["h"] = self.zoom_modal.winfo_width(), self.zoom_modal.winfo_height()
+
+        def on_grip_drag(e):
+            manual_sized["active"] = True
+            aw, ah = self.app.root.winfo_width(), self.app.root.winfo_height()
+            cx = self.app.root.winfo_rootx() + (aw // 2)
+            cy = self.app.root.winfo_rooty() + (ah // 2)
+            nw = min(max(340, drag_resize["w"] + (e.x_root - drag_resize["x"]) * 2), max(360, aw - 20))
+            nh = min(max(220, drag_resize["h"] + (e.y_root - drag_resize["y"]) * 2), max(240, ah - 20))
+            self.zoom_modal.geometry(f"{nw}x{nh}+{cx - (nw // 2)}+{cy - (nh // 2)}")
+            sync_vp()
+
+        grip.bind("<ButtonPress-1>", on_grip_press)
+        grip.bind("<B1-Motion>", on_grip_drag)
+
+        hint_lbl = tk.Label(footer, text="Click Category to Expand  |  Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner  |  ESC to Close",
+                            bg='#161616', fg='#777777', font=('Arial', 9, 'italic'))
+        hint_lbl.pack(side="top", pady=(0, 6))
+        tk.Button(footer, text="[ Close Ledger View ]", command=close_modal, bg='#161616', fg='#aaaaaa',
+                  font=('Arial', 12, 'bold'), bd=0, cursor="hand2").pack(side="top")
 
         vp = tk.Frame(self.zoom_modal, bg='#161616')
         vp.pack(side="top", fill="both", expand=True, padx=25, pady=5)
@@ -1509,7 +1535,6 @@ class MonthlyFinancialsView:
         z_can.configure(xscrollcommand=h_sb.set, yscrollcommand=v_sb.set)
         inner_f = tk.Frame(z_canvas := z_can, bg='#161616')
         win_id = z_can.create_window((0, 0), window=inner_f, anchor="nw")
-
         def sync_vp(e=None):
             inner_f.update_idletasks(); z_can.update_idletasks()
             z_can.configure(scrollregion=z_can.bbox("all"))
@@ -1521,6 +1546,9 @@ class MonthlyFinancialsView:
             z_can.coords(win_id, max(0, (cw - rw) // 2) if rw <= cw + 4 else 0, 0)
 
         def resize_modal():
+            if manual_sized["active"]:
+                self.zoom_modal.update_idletasks(); sync_vp()
+                return
             self.zoom_modal.update_idletasks(); inner_f.update_idletasks()
             aw, ah, ax, ay = self.app.root.winfo_width(), self.app.root.winfo_height(), self.app.root.winfo_x(), self.app.root.winfo_y()
             fw = min(max(inner_f.winfo_reqwidth() + 70, title_lbl.winfo_reqwidth() + 80, hint_lbl.winfo_reqwidth() + 60, 360), max(340, aw - 40))
@@ -1532,7 +1560,6 @@ class MonthlyFinancialsView:
             for w in inner_f.winfo_children():
                 w.destroy()
 
-            # Build display rows list: (label_str, val_float, is_cat_header, cat_raw_key, clickable)
             display_rows = []
             for c in cats:
                 sub_keys = list(c["subs"].keys())
@@ -1587,7 +1614,21 @@ class MonthlyFinancialsView:
         self.zoom_modal.bind("<Escape>", close_modal)
 
         render_accordion_rows()
-        self.zoom_modal.transient(self.app.root); self.zoom_modal.grab_set(); self.zoom_modal.focus_force()
+
+        def on_outside_click(event):
+            if not self.zoom_modal or not self.zoom_modal.winfo_exists():
+                return
+            mx, my = self.zoom_modal.winfo_rootx(), self.zoom_modal.winfo_rooty()
+            mw, mh = self.zoom_modal.winfo_width(), self.zoom_modal.winfo_height()
+            if not (mx <= event.x_root <= mx + mw and my <= event.y_root <= my + mh):
+                close_modal()
+
+        self.zoom_modal.bind("<Button-1>", on_outside_click)
+        self.zoom_modal.transient(self.app.root)
+        self.zoom_modal.attributes('-topmost', True)
+        self.zoom_modal.lift()
+        self.zoom_modal.grab_set()
+        self.zoom_modal.focus_force()
 
     def prompt_and_export_chart(self):
         dlg = tk.Toplevel(self.app.root)
