@@ -25,6 +25,8 @@ class MonthlyFinancialsView:
         self.tooltip = None
         self.tooltip_frozen = False
         self.tooltip_hint_lbl = None
+        self._tip_pointer_artists = []
+        self._pending_tip_anchor = None
         self.modal_active = False
         self.zoom_modal = None
         self.zoom_font_size = 14
@@ -185,6 +187,7 @@ class MonthlyFinancialsView:
         )
 
     def redraw_chart(self, theme="dark", force=False):
+        self._clear_tooltip_pointer()
         if not self.initialized or not self.records:
             return
         sig = self._compute_render_signature(theme)
@@ -1341,12 +1344,59 @@ class MonthlyFinancialsView:
         tot_label = f"YTD {line_type} thru {active_recs[target_idx]['month']}" if is_cumulative else f"Total {line_type}"
         return ordered_cats, tot_label, total_val
 
+    def _clear_tooltip_pointer(self):
+        for artist in getattr(self, '_tip_pointer_artists', []):
+            try:
+                artist.remove()
+            except Exception:
+                pass
+        self._tip_pointer_artists = []
+        try:
+            if getattr(self, 'canvas', None):
+                self.canvas.draw_idle()
+        except Exception:
+            pass
+
+    def _update_tooltip_pointer(self, ax, anchor_xy, color):
+        self._clear_tooltip_pointer()
+        if not self.tooltip or not self.tooltip.winfo_exists() or ax is None:
+            return
+        canvas_w = self.canvas.get_tk_widget()
+        cw_x, cw_y = canvas_w.winfo_rootx(), canvas_w.winfo_rooty()
+        cw_h = canvas_w.winfo_height()
+
+        tx = self.tooltip.winfo_x() - cw_x
+        ty = self.tooltip.winfo_y() - cw_y
+        tw = max(1, self.tooltip.winfo_width() or self.tooltip.winfo_reqwidth())
+        th = max(1, self.tooltip.winfo_height() or self.tooltip.winfo_reqheight())
+
+        anc_disp_x, anc_disp_y = ax.transData.transform(anchor_xy)
+        anc_tk_x = anc_disp_x
+        anc_tk_y = cw_h - anc_disp_y
+
+        edge_tk_x = min(max(anc_tk_x, tx), tx + tw)
+        edge_tk_y = min(max(anc_tk_y, ty), ty + th)
+        tip_data_x, tip_data_y = ax.transData.inverted().transform((edge_tk_x, cw_h - edge_tk_y))
+
+        anc_x, anc_y = anchor_xy
+        line, = ax.plot(
+            [anc_x, tip_data_x], [anc_y, tip_data_y],
+            color=color, linestyle='-', linewidth=1.6, alpha=0.9, zorder=25, clip_on=False
+        )
+        dot, = ax.plot(
+            [anc_x], [anc_y],
+            marker='o', markersize=6, color=color, markeredgecolor=DARK_BG, markeredgewidth=1.2, zorder=26
+        )
+        self._tip_pointer_artists = [line, dot]
+        self.canvas.draw_idle()
+
     def handle_hover(self, event):
         if self.modal_active or self.tooltip_frozen:
             return
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
+            self._clear_tooltip_pointer()
         if self.view_profile_var.get() == "Silence All Tooltips":
             return
 
@@ -1418,6 +1468,9 @@ class MonthlyFinancialsView:
             nx = e.x_root - drag_state["x"]
             ny = e.y_root - drag_state["y"]
             self.tooltip.wm_geometry(f"+{nx}+{ny}")
+            if getattr(self, '_pending_tip_anchor', None):
+                self.tooltip.update_idletasks()
+                self._update_tooltip_pointer(*self._pending_tip_anchor)
 
         def on_tip_release(e):
             if not drag_state["moved"]:
@@ -1436,6 +1489,8 @@ class MonthlyFinancialsView:
         pos_x = px + 15 if (px + 15 + tip_w <= sw) else max(10, px - tip_w - 15)
         pos_y = py + 15 if (py + 15 + tip_h <= sh) else max(10, py - tip_h - 15)
         self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
+        target_ax = self.ax_bot if line_type == "Net" else self.ax_top
+        self._pending_tip_anchor = (target_ax, (idx, target_y), border_color)
 
     def toggle_tooltip_freeze(self):
         if self.tooltip_frozen:
@@ -1443,10 +1498,15 @@ class MonthlyFinancialsView:
             if self.tooltip:
                 self.tooltip.destroy()
                 self.tooltip = None
+                self._clear_tooltip_pointer()
         elif self.tooltip:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
-                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin | Right-Click to Zoom]", fg=PINNED_TEAL)
+                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin | Right-Click to Zoom]",
+                                             fg=PINNED_TEAL)
+            if getattr(self, '_pending_tip_anchor', None):
+                self.tooltip.update_idletasks()
+                self._update_tooltip_pointer(*self._pending_tip_anchor)
 
     def handle_click(self, event):
         if self.modal_active or self.view_profile_var.get() == "Silence All Tooltips":
@@ -1456,6 +1516,7 @@ class MonthlyFinancialsView:
         elif event.button == 3:
             if self.tooltip_frozen:
                 self.tooltip_frozen = False
+                self._clear_tooltip_pointer()
             hit = self.resolve_hovered_target(event)
             if hit:
                 idx, rec, line_type, _ = hit

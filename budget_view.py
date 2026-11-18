@@ -1,11 +1,11 @@
 import os
 import sys
-import tkinter as tk
 from tkinter import messagebox, ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from utility_methods import *  # Imports cleanly from your support module
 from budget_importer import import_excel_budget
 import csv
+import math
 
 class BudgetView:
     def __init__(self, app, left_container, right_container):
@@ -50,6 +50,7 @@ class BudgetView:
         self.tooltip = None
         self.tooltip_frozen = False
         self.tooltip_hint_lbl = None
+        self._tip_pointer_artists = []
 
         # Seed your active session save handle to Desktop by default (overridden if a CSV is loaded from CWD)
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
@@ -467,6 +468,56 @@ class BudgetView:
 
         return lbl_var, val_var
 
+    def _clear_tooltip_pointer(self):
+        canvases = set()
+        for artist in getattr(self, '_tip_pointer_artists', []):
+            try:
+                if artist.axes and artist.axes.figure:
+                    canvases.add(artist.axes.figure.canvas)
+                artist.remove()
+            except Exception:
+                pass
+        self._tip_pointer_artists = []
+        for c in canvases:
+            try:
+                c.draw_idle()
+            except Exception:
+                pass
+
+    def _update_tooltip_pointer(self, ax, anchor_xy, color):
+        self._clear_tooltip_pointer()
+        if not self.tooltip or not self.tooltip.winfo_exists() or ax is None:
+            return
+        canvas_w = ax.figure.canvas.get_tk_widget()
+        cw_x, cw_y = canvas_w.winfo_rootx(), canvas_w.winfo_rooty()
+        cw_h = canvas_w.winfo_height()
+
+        tx = self.tooltip.winfo_x() - cw_x
+        ty = self.tooltip.winfo_y() - cw_y
+        tw = max(1, self.tooltip.winfo_width() or self.tooltip.winfo_reqwidth())
+        th = max(1, self.tooltip.winfo_height() or self.tooltip.winfo_reqheight())
+
+        anc_disp_x, anc_disp_y = ax.transData.transform(anchor_xy)
+        anc_tk_x = anc_disp_x
+        anc_tk_y = cw_h - anc_disp_y
+
+        # Clamp anchor to the nearest edge point of the tooltip box
+        edge_tk_x = min(max(anc_tk_x, tx), tx + tw)
+        edge_tk_y = min(max(anc_tk_y, ty), ty + th)
+        tip_data_x, tip_data_y = ax.transData.inverted().transform((edge_tk_x, cw_h - edge_tk_y))
+
+        anc_x, anc_y = anchor_xy
+        line, = ax.plot(
+            [anc_x, tip_data_x], [anc_y, tip_data_y],
+            color=color, linestyle='-', linewidth=1.6, alpha=0.9, zorder=25, clip_on=False
+        )
+        dot, = ax.plot(
+            [anc_x], [anc_y],
+            marker='o', markersize=6, color=color, markeredgecolor=DARK_BG, markeredgewidth=1.2, zorder=26
+        )
+        self._tip_pointer_artists = [line, dot]
+        ax.figure.canvas.draw_idle()
+
     def handle_hover(self, event, chart_type):
         """Manages hovering mechanics, secures item details in public modes,
         and preserves parent category math balance readouts perfectly.
@@ -478,6 +529,7 @@ class BudgetView:
         if self.tooltip:
             self.tooltip.destroy()
             self.tooltip = None
+            self._clear_tooltip_pointer()
 
         if not event.inaxes:
             return
@@ -494,6 +546,14 @@ class BudgetView:
             if i >= len(labels): continue
             contained, _ = w.contains(event)
             if contained:
+                mid_rad = math.radians((w.theta1 + w.theta2) / 2.0)
+                cx, cy = w.center
+                wedge_anchor = (
+                    cx + 0.25 * w.r * math.cos(mid_rad),  # 0.25 is the fraction of the radius away from wedge point
+                    cy + 0.25 * w.r * math.sin(mid_rad),  # to place the anchor of the tooltip connector
+                )
+                target_ax = event.inaxes
+
                 hovered_label = labels[i]
                 expected_total = sizes[i]
 
@@ -598,6 +658,8 @@ class BudgetView:
                     nx = e.x_root - drag_state["x"]
                     ny = e.y_root - drag_state["y"]
                     self.tooltip.wm_geometry(f"+{nx}+{ny}")
+                    self.tooltip.update_idletasks()
+                    self._update_tooltip_pointer(target_ax, wedge_anchor, border_color)
 
                 def on_tip_release(e):
                     if not drag_state["moved"]:
@@ -629,11 +691,14 @@ class BudgetView:
                 pos_y = pointer_y + 15 if (pointer_y + 15 + tip_h <= screen_h) else max(10, pointer_y - tip_h - 15)
 
                 self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
+                self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
+                self._pending_tip_anchor = (target_ax, wedge_anchor, border_color)
                 break
 
     def toggle_tooltip_freeze(self):
         if self.tooltip_frozen:
             self.tooltip_frozen = False
+            self._clear_tooltip_pointer()
             if self.tooltip:
                 self.tooltip.destroy()
                 self.tooltip = None
@@ -641,6 +706,9 @@ class BudgetView:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
                 self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin]", fg=PINNED_TEAL)
+            if getattr(self, '_pending_tip_anchor', None):
+                self.tooltip.update_idletasks()
+                self._update_tooltip_pointer(*self._pending_tip_anchor)
 
     def handle_click(self, event, chart_type):
         """FEATURE IMPLEMENTATION: Intercepts single left-clicks to pin/unpin tooltips
@@ -656,6 +724,7 @@ class BudgetView:
                 if self.tooltip:
                     self.tooltip.destroy()
                     self.tooltip = None
+                    self._clear_tooltip_pointer()
             else:
                 self.toggle_tooltip_freeze()
                 return
