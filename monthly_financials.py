@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from monthly_importer import import_financial_spreadsheet
-from utility_methods import create_monthly_line_chart
+from utility_methods import *  # Imports cleanly from your support module
 
 ALL_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -47,7 +47,7 @@ class MonthlyFinancialsView:
         self.records = []
         self.row_widgets = []
 
-        self.fig = Figure(figsize=(8, 5), dpi=100, facecolor='#111111')
+        self.fig = Figure(figsize=(8, 5), dpi=100, facecolor=DARK_BG)
         self.canvas = None
 
         self.build_ui()
@@ -79,7 +79,7 @@ class MonthlyFinancialsView:
         if not getattr(self, 'selected_filter_items', None):
             return None, 0.0, None
 
-        palette = ["#00F0FF", "#FF007F", "#00FF66", "#FFB800", "#B366FF", "#FF6600", "#33CCFF", "#FF66B2"]
+        palette = [NEON_CYAN, NEON_PINK, NEON_GREEN, NEON_AMBER, NEON_VIOLET, NEON_ORANGE, NEON_SKY, NEON_ROSE]
         raw_series = []
         has_inc, has_exp = False, False
 
@@ -121,7 +121,7 @@ class MonthlyFinancialsView:
                                     item_bud_mo += s_val
 
             arr = np.cumsum(mo_vals) if is_cumulative else np.array(mo_vals, dtype=float)
-            item_col = ("#FF007F" if item_is_exp else "#00F0FF") if len(self.selected_filter_items) == 1 else palette[idx % len(palette)]
+            item_col = (NEON_PINK if item_is_exp else NEON_CYAN) if len(self.selected_filter_items) == 1 else palette[idx % len(palette)]
             raw_series.append({"label": disp_label, "values": arr, "color": item_col, "is_exp": item_is_exp, "bud_mo": item_bud_mo})
 
         sel_kind = "mixed" if (has_inc and has_exp) else ("expense" if has_exp else "income")
@@ -148,7 +148,7 @@ class MonthlyFinancialsView:
                     s["values"] = -s["values"]
 
         if not keep_individual and self.filter_combine_mode == "combined" and len(raw_series) > 1:
-            comb_col = "#00F0FF" if sel_kind == "income" else ("#FF007F" if sel_kind == "expense" else "#FFB800")
+            comb_col = NEON_CYAN if sel_kind == "income" else (NEON_PINK if sel_kind == "expense" else NEON_AMBER)
             comb_lbl = f"Net Combined ({len(raw_series)} items)" if sel_kind == "mixed" else f"Combined ({len(raw_series)} items)"
             combined_arr = np.sum([s["values"] for s in raw_series], axis=0)
             return [{"label": comb_lbl, "values": combined_arr, "color": comb_col, "is_exp": (sel_kind == "expense")}], bud_mo_sum, sel_kind
@@ -301,7 +301,7 @@ class MonthlyFinancialsView:
         dlg = tk.Toplevel(self.app.root)
         self.filter_dlg = dlg
         dlg.title("Filter Chart Categories & Subcategories")
-        dlg.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+        dlg.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
         dlg.geometry("410x500")
         dlg.transient(self.app.root)
 
@@ -309,11 +309,11 @@ class MonthlyFinancialsView:
         my = self.app.root.winfo_y() + (self.app.root.winfo_height() // 2) - 250
         dlg.geometry(f"+{max(20, mx)}+{max(20, my)}")
 
-        tk.Label(dlg, text="SELECT CATEGORIES OR SUBCATEGORIES TO PLOT", bg='#1c1c1c', fg='#00F0FF',
+        tk.Label(dlg, text="SELECT CATEGORIES OR SUBCATEGORIES TO PLOT", bg=MODAL_BG, fg=NEON_CYAN,
                  font=('Arial', 10, 'bold')).pack(pady=(12, 6))
 
         mode_var = tk.StringVar(value=self.filter_combine_mode)
-        mode_bar = tk.Frame(dlg, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+        mode_bar = tk.Frame(dlg, bg=RECESSED_BG, highlightbackground=BORDER_GRAY, highlightthickness=1)
         mode_bar.pack(fill="x", padx=18, pady=(0, 8))
 
         def sync_and_redraw():
@@ -325,30 +325,30 @@ class MonthlyFinancialsView:
             self.redraw_chart()
 
         tk.Radiobutton(mode_bar, text="Combined Total", variable=mode_var, value="combined",
-                       bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
-                       activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
+                       bg=RECESSED_BG, fg='white', selectcolor=AXIS_GRAY, font=('Arial', 8, 'bold'),
+                       activebackground=RECESSED_BG, activeforeground=NEON_CYAN, command=sync_and_redraw).pack(
             side="left", padx=0, pady=5)
         tk.Radiobutton(mode_bar, text="Separate Lines", variable=mode_var, value="separate",
-                       bg='#141414', fg='white', selectcolor='#1e1e1e', font=('Arial', 8, 'bold'),
-                       activebackground='#141414', activeforeground='#00F0FF', command=sync_and_redraw).pack(
+                       bg=RECESSED_BG, fg='white', selectcolor=AXIS_GRAY, font=('Arial', 8, 'bold'),
+                       activebackground=RECESSED_BG, activeforeground=NEON_CYAN, command=sync_and_redraw).pack(
             side="left", padx=0, pady=5)
 
         show_bud_var = tk.BooleanVar(value=self.show_filtered_budgets)
         tk.Checkbutton(
             mode_bar, text="Budget Lines", variable=show_bud_var,
-            bg='#141414', fg='#FFB800', selectcolor='#1e1e1e',
-            activebackground='#141414', activeforeground='white',
+            bg=RECESSED_BG, fg=NEON_AMBER, selectcolor=AXIS_GRAY,
+            activebackground=RECESSED_BG, activeforeground='white',
             font=('Arial', 8, 'bold'), cursor="hand2",
             command=sync_and_redraw
         ).pack(side="right", padx=10, pady=5)
 
-        tree_frame = tk.Frame(dlg, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+        tree_frame = tk.Frame(dlg, bg=RECESSED_BG, highlightbackground=BORDER_GRAY, highlightthickness=1)
         tree_frame.pack(fill="both", expand=True, padx=18, pady=4)
 
         style = ttk.Style()
-        style.configure("Filter.Treeview", background="#141414", foreground="#e0e0e0",
-                        fieldbackground="#141414", rowheight=24, font=('Arial', 9))
-        style.map("Filter.Treeview", background=[('selected', '#263842')], foreground=[('selected', '#00F0FF')])
+        style.configure("Filter.Treeview", background=RECESSED_BG, foreground=SILVER_TEXT,
+                        fieldbackground=RECESSED_BG, rowheight=24, font=('Arial', 9))
+        style.map("Filter.Treeview", background=[('selected', SELECT_TEAL_BG)], foreground=[('selected', NEON_CYAN)])
 
         tree = ttk.Treeview(tree_frame, style="Filter.Treeview", show="tree")
         v_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview, style="Dark.Vertical.TScrollbar")
@@ -453,11 +453,11 @@ class MonthlyFinancialsView:
             if dlg.winfo_exists():
                 dlg.destroy()
 
-        btn_bar = tk.Frame(dlg, bg='#1c1c1c')
+        btn_bar = tk.Frame(dlg, bg=MODAL_BG)
         btn_bar.pack(side="bottom", pady=12)
-        tk.Button(btn_bar, text="Clear All", command=clear_filter, bg='#2a2a2a', fg='#FFB800',
+        tk.Button(btn_bar, text="Clear All", command=clear_filter, bg=BUTTON_BG, fg=NEON_AMBER,
                   font=('Arial', 9, 'bold'), padx=14, pady=4, bd=0, cursor="hand2").pack(side="left", padx=8)
-        tk.Button(btn_bar, text="Close", command=close_dialog, bg='#00F0FF', fg='black',
+        tk.Button(btn_bar, text="Close", command=close_dialog, bg=NEON_CYAN, fg='black',
                   font=('Arial', 9, 'bold'), padx=16, pady=4, bd=0, cursor="hand2").pack(side="left", padx=8)
 
         dlg.protocol("WM_DELETE_WINDOW", close_dialog)
@@ -466,16 +466,16 @@ class MonthlyFinancialsView:
     def build_ui(self):
         # ---------------- LEFT PANEL ----------------
         # Data Source Indicator Banner (Top of Left Panel)
-        src_bar = tk.Frame(self.left_container, bg='#1a1a1a', highlightbackground='#333333', highlightthickness=1)
+        src_bar = tk.Frame(self.left_container, bg=CHARCOAL_TEXT, highlightbackground=BORDER_GRAY, highlightthickness=1)
         src_bar.pack(side="top", fill="x", padx=11, pady=(8, 2))
-        tk.Label(src_bar, textvariable=self.data_source_var, bg='#1a1a1a', fg='#00F0FF',
+        tk.Label(src_bar, textvariable=self.data_source_var, bg=CHARCOAL_TEXT, fg=NEON_CYAN,
                  font=('Arial', 8, 'bold'), anchor="w", padx=0, pady=3).pack(fill="x")
 
-        title_box = tk.Frame(self.left_container, bg='#111111')
+        title_box = tk.Frame(self.left_container, bg=DARK_BG)
         title_box.pack(side="top", fill="x", padx=12, pady=(8, 4))
-        tk.Label(title_box, text="FINANCIAL CHART TITLE", fg='#00F0FF', bg='#111111',
+        tk.Label(title_box, text="FINANCIAL CHART TITLE", fg=NEON_CYAN, bg=DARK_BG,
                  font=('Arial', 8, 'bold')).pack(anchor="w")
-        title_ent = tk.Entry(title_box, textvariable=self.title_var, bg='#1e1e1e', fg='white',
+        title_ent = tk.Entry(title_box, textvariable=self.title_var, bg=AXIS_GRAY, fg='white',
                              insertbackground='white', bd=1, relief="solid", font=('Arial', 9, 'bold'))
         title_ent.pack(fill="x", pady=(2, 4))
         self._title_debounce_id = None
@@ -488,82 +488,82 @@ class MonthlyFinancialsView:
         self.title_var.trace_add("write", on_title_change)
 
         # Table Column Headers (Grid-aligned with data rows below)
-        hdr_frame = tk.Frame(self.left_container, bg='#1a1a1a')
+        hdr_frame = tk.Frame(self.left_container, bg=CHARCOAL_TEXT)
         hdr_frame.pack(side="top", fill="x", padx=8, pady=(4, 0))
         hdr_frame.columnconfigure(0, minsize=38)
         hdr_frame.columnconfigure(1, weight=1)
         hdr_frame.columnconfigure(2, weight=1)
         hdr_frame.columnconfigure(3, minsize=36)
 
-        tk.Label(hdr_frame, text="Mo", bg='#1a1a1a', fg='#aaaaaa', font=('Arial', 8, 'bold'), anchor="w").grid(row=0, column=0, sticky="w", padx=3, pady=2)
-        tk.Label(hdr_frame, text="Income", bg='#1a1a1a', fg='#00F0FF', font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=1, sticky="e", padx=4, pady=2)
-        tk.Label(hdr_frame, text="Expense", bg='#1a1a1a', fg='#FF007F', font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=2, sticky="e", padx=4, pady=2)
-        tk.Label(hdr_frame, text="Type", bg='#1a1a1a', fg='#888888', font=('Arial', 8, 'bold'), anchor="center").grid(row=0, column=3, sticky="ew", padx=2, pady=2)
+        tk.Label(hdr_frame, text="Mo", bg=CHARCOAL_TEXT, fg=SOFT_GRAY, font=('Arial', 8, 'bold'), anchor="w").grid(row=0, column=0, sticky="w", padx=3, pady=2)
+        tk.Label(hdr_frame, text="Income", bg=CHARCOAL_TEXT, fg=NEON_CYAN, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=1, sticky="e", padx=4, pady=2)
+        tk.Label(hdr_frame, text="Expense", bg=CHARCOAL_TEXT, fg=NEON_PINK, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=2, sticky="e", padx=4, pady=2)
+        tk.Label(hdr_frame, text="Type", bg=CHARCOAL_TEXT, fg=MUTED_GRAY, font=('Arial', 8, 'bold'), anchor="center").grid(row=0, column=3, sticky="ew", padx=2, pady=2)
 
-        self.scroll_outer = tk.Frame(self.left_container, bg='#111111')
+        self.scroll_outer = tk.Frame(self.left_container, bg=DARK_BG)
         self.scroll_outer.pack(side="top", fill="x", expand=False, padx=8, pady=(2, 4))
 
-        self.scroll_canvas = tk.Canvas(self.scroll_outer, bg='#111111', bd=0, highlightthickness=0, width=180)
+        self.scroll_canvas = tk.Canvas(self.scroll_outer, bg=DARK_BG, bd=0, highlightthickness=0, width=180)
         self.scroll_canvas.pack(side="left", fill="both", expand=True)
 
         self.v_scrollbar = ttk.Scrollbar(self.scroll_outer, orient="vertical", command=self.scroll_canvas.yview,
                                          style="Dark.Vertical.TScrollbar")
         self.scroll_canvas.configure(yscrollcommand=self.v_scrollbar.set)
 
-        self.rows_inner_frame = tk.Frame(self.scroll_canvas, bg='#111111')
+        self.rows_inner_frame = tk.Frame(self.scroll_canvas, bg=DARK_BG)
         self.canvas_win_id = self.scroll_canvas.create_window((0, 0), window=self.rows_inner_frame, anchor="nw")
 
         self.rows_inner_frame.bind("<Configure>", self.sync_left_scroll_height)
         self.left_container.bind("<Configure>", self.sync_left_scroll_height)
         self.scroll_canvas.bind("<Configure>", lambda e: self.scroll_canvas.itemconfig(self.canvas_win_id, width=e.width))
-        summary_frame = tk.Frame(self.left_container, bg='#111111')
+        summary_frame = tk.Frame(self.left_container, bg=DARK_BG)
         summary_frame.pack(side="top", fill="x", padx=12, pady=(4, 4))
 
-        tk.Frame(summary_frame, height=1, bg='#333333').pack(fill="x", pady=(0, 4))
-        self.tot_inc_lbl = tk.Label(summary_frame, text="Total Income: $0", fg='#00F0FF', bg='#111111',
+        tk.Frame(summary_frame, height=1, bg=BORDER_GRAY).pack(fill="x", pady=(0, 4))
+        self.tot_inc_lbl = tk.Label(summary_frame, text="Total Income: $0", fg=NEON_CYAN, bg=DARK_BG,
                                     font=('Arial', 9, 'bold'), anchor="w")
         self.tot_inc_lbl.pack(fill="x")
-        self.tot_exp_lbl = tk.Label(summary_frame, text="Total Expenses: $0", fg='#FF007F', bg='#111111',
+        self.tot_exp_lbl = tk.Label(summary_frame, text="Total Expenses: $0", fg=NEON_PINK, bg=DARK_BG,
                                     font=('Arial', 9, 'bold'), anchor="w")
         self.tot_exp_lbl.pack(fill="x")
-        self.net_pos_lbl = tk.Label(summary_frame, text="Net Position: $0", fg='white', bg='#111111',
+        self.net_pos_lbl = tk.Label(summary_frame, text="Net Position: $0", fg='white', bg=DARK_BG,
                                     font=('Arial', 10, 'bold'), anchor="w")
         self.net_pos_lbl.pack(fill="x", pady=(2, 0))
-        tk.Frame(summary_frame, height=1, bg='#333333').pack(fill="x", pady=(4, 6))
+        tk.Frame(summary_frame, height=1, bg=BORDER_GRAY).pack(fill="x", pady=(4, 6))
 
         tk.Button(
             summary_frame, text="Reset to Budget Forecast",
             command=self.reset_to_budget_forecast,
-            bg='#222222', fg='#00F0FF', activebackground='#333333', activeforeground='white',
+            bg=DARK_EDGE, fg=NEON_CYAN, activebackground=BORDER_GRAY, activeforeground='white',
             font=('Arial', 8, 'bold'), bd=1, relief="solid", pady=3, cursor="hand2"
         ).pack(fill="x", pady=(2, 2))
 
-        actions_frame = tk.Frame(self.left_container, bg='#111111')
+        actions_frame = tk.Frame(self.left_container, bg=DARK_BG)
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
 
         tk.Button(actions_frame, text="Import Financial Spreadsheet",
                   command=lambda: import_financial_spreadsheet(self),
-                  bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
+                  bg=NEON_MAGENTA, fg='black', activebackground=HOVER_MAGENTA, activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
         tk.Button(actions_frame, text="Update Chart", command=lambda: self.redraw_chart(force=True),
-                  bg='#00F0FF', fg='black', activebackground='#66f5ff', activeforeground='black',
+                  bg=NEON_CYAN, fg='black', activebackground=HOVER_CYAN, activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
         self.btn_save_csv = tk.Button(actions_frame, text="Create CSV File", command=self.save_to_csv,
-                                      bg='#FFaa00', fg='black', activebackground='#ffcc66', activeforeground='black',
+                                      bg=NEON_GOLD, fg='black', activebackground=HOVER_GOLD, activeforeground='black',
                                       font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2")
         self.btn_save_csv.pack(fill="x", pady=4)
 
         tk.Button(actions_frame, text="Save Chart to Desktop", command=self.prompt_and_export_chart,
-                  bg='#00FF66', fg='black', activebackground='#66ff99', activeforeground='black',
+                  bg=NEON_GREEN, fg='black', activebackground=HOVER_GREEN, activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
         # ---------------- RIGHT PANEL ----------------
         self.right_container.rowconfigure(0, weight=1)
         self.right_container.columnconfigure(0, weight=1)
 
-        chart_holder = tk.Frame(self.right_container, bg='#111111')
+        chart_holder = tk.Frame(self.right_container, bg=DARK_BG)
         chart_holder.grid(row=0, column=0, sticky="nsew", padx=15, pady=5)
         chart_holder.rowconfigure(0, weight=1)
         chart_holder.columnconfigure(0, weight=1)
@@ -571,27 +571,27 @@ class MonthlyFinancialsView:
         self.canvas = FigureCanvasTkAgg(self.fig, master=chart_holder)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
 
-        ctrl_bar = tk.Frame(self.right_container, bg='#111111')
+        ctrl_bar = tk.Frame(self.right_container, bg=DARK_BG)
         ctrl_bar.grid(row=1, column=0, sticky="ew", padx=20, pady=10)
 
         tk.Checkbutton(
             ctrl_bar, text="Include PY Surplus", variable=self.include_surplus_var,
-            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
-            activebackground='#111111', activeforeground='white',
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.on_surplus_toggle
         ).pack(side="left", padx=(0, 10))
 
         tk.Checkbutton(
             ctrl_bar, text="Show 12-Mo Forecast", variable=self.show_forecast_var,
-            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
-            activebackground='#111111', activeforeground='white',
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.redraw_chart
         ).pack(side="left", padx=(0, 10))
 
         tk.Checkbutton(
             ctrl_bar, text="Acct #s", variable=self.show_acct_nums_var,
-            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
-            activebackground='#111111', activeforeground='white',
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.redraw_chart
         ).pack(side="left", padx=(0, 12))
 
@@ -610,18 +610,18 @@ class MonthlyFinancialsView:
         self.filter_btn = tk.Button(
             ctrl_bar, textvariable=self.filter_btn_var,
             command=self.open_filter_dialog,
-            bg='#222222', fg='#00F0FF', activebackground='#333333', activeforeground='white',
+            bg=DARK_EDGE, fg=NEON_CYAN, activebackground=BORDER_GRAY, activeforeground='white',
             font=('Arial', 8, 'bold'), bd=1, relief="solid", padx=8, pady=2, cursor="hand2"
         )
         self.filter_btn.pack(side="left", padx=(0, 10))
 
-        mode_frame = tk.Frame(ctrl_bar, bg='#111111')
+        mode_frame = tk.Frame(ctrl_bar, bg=DARK_BG)
         mode_frame.pack(side="right")
         for lbl, val in [("Monthly", "Monthly"), ("Cumulative YTD", "Cumulative")]:
             tk.Radiobutton(
                 mode_frame, text=lbl, variable=self.chart_mode_var, value=val,
-                bg='#111111', fg='#00F0FF' if val == "Cumulative" else 'white',
-                selectcolor='#1e1e1e', activebackground='#111111', activeforeground='white',
+                bg=DARK_BG, fg=NEON_CYAN if val == "Cumulative" else 'white',
+                selectcolor=AXIS_GRAY, activebackground=DARK_BG, activeforeground='white',
                 font=('Arial', 9, 'bold'), cursor="hand2", command=self.redraw_chart
             ).pack(side="left", padx=4)
 
@@ -884,10 +884,10 @@ class MonthlyFinancialsView:
                 inc_var.set(f"{disp_inc:.0f}")
                 exp_var.set(f"{rec['expense']:.0f}")
                 fc_var.set(rec["is_forecast"])
-                ent_mo.config(fg='#888888' if rec["is_forecast"] else 'white')
+                ent_mo.config(fg=MUTED_GRAY if rec["is_forecast"] else 'white')
                 type_btn.config(
                     text="Fcst" if rec["is_forecast"] else "Act",
-                    fg='#ffaa00' if rec["is_forecast"] else '#00FF66'
+                    fg=NEON_GOLD if rec["is_forecast"] else NEON_GREEN
                 )
             self._suppress_live_trace = False
             self.sync_left_scroll_height()
@@ -898,8 +898,8 @@ class MonthlyFinancialsView:
         self.row_widgets = []
 
         def show_row_context_menu(event, r_idx):
-            menu = tk.Menu(self.app.root, tearoff=0, bg='#1e1e1e', fg='white',
-                           activebackground='#00F0FF', activeforeground='black', font=('Arial', 9, 'bold'))
+            menu = tk.Menu(self.app.root, tearoff=0, bg=AXIS_GRAY, fg='white',
+                           activebackground=NEON_CYAN, activeforeground='black', font=('Arial', 9, 'bold'))
             mo_name = self.records[r_idx]["month"]
             menu.add_command(label=f"Clear '{mo_name}' ($0)", command=lambda: clear_row(r_idx))
             menu.add_command(label=f"Restore '{mo_name}'", command=lambda: restore_row(r_idx))
@@ -932,8 +932,8 @@ class MonthlyFinancialsView:
                 inc_v.set(f"{disp_i:.0f}")
                 exp_v.set(f"{snap['expense']:.0f}")
                 fc_v.set(snap["is_forecast"])
-                ent_mo.config(fg='#888888' if snap["is_forecast"] else 'white')
-                type_btn.config(text="Fcst" if snap["is_forecast"] else "Act", fg='#ffaa00' if snap["is_forecast"] else '#00FF66')
+                ent_mo.config(fg=MUTED_GRAY if snap["is_forecast"] else 'white')
+                type_btn.config(text="Fcst" if snap["is_forecast"] else "Act", fg=NEON_GOLD if snap["is_forecast"] else NEON_GREEN)
                 self._suppress_live_trace = False
                 self.redraw_chart()
 
@@ -958,7 +958,7 @@ class MonthlyFinancialsView:
             self.redraw_chart()
 
         for idx, rec in enumerate(self.records):
-            row_f = tk.Frame(self.rows_inner_frame, bg='#111111')
+            row_f = tk.Frame(self.rows_inner_frame, bg=DARK_BG)
             row_f.pack(fill="x", pady=1)
             row_f.columnconfigure(0, minsize=38)
             row_f.columnconfigure(1, weight=1)
@@ -971,16 +971,16 @@ class MonthlyFinancialsView:
             exp_var = tk.StringVar(value=f"{rec['expense']:.0f}")
             fc_var = tk.BooleanVar(value=rec["is_forecast"])
 
-            fg_tint = '#888888' if rec["is_forecast"] else 'white'
-            ent_mo = tk.Entry(row_f, textvariable=mo_var, bg='#1a1a1a', fg=fg_tint, insertbackground='white',
+            fg_tint = MUTED_GRAY if rec["is_forecast"] else 'white'
+            ent_mo = tk.Entry(row_f, textvariable=mo_var, bg=CHARCOAL_TEXT, fg=fg_tint, insertbackground='white',
                               bd=1, relief="solid", font=('Arial', 8, 'bold'), width=4)
             ent_mo.grid(row=0, column=0, sticky="ew", padx=2)
 
-            ent_inc = tk.Entry(row_f, textvariable=inc_var, bg='#1a1a1a', fg='#00F0FF', insertbackground='white',
+            ent_inc = tk.Entry(row_f, textvariable=inc_var, bg=CHARCOAL_TEXT, fg=NEON_CYAN, insertbackground='white',
                                bd=1, relief="solid", font=('Arial', 8, 'bold'), width=7, justify="right")
             ent_inc.grid(row=0, column=1, sticky="ew", padx=2)
 
-            ent_exp = tk.Entry(row_f, textvariable=exp_var, bg='#1a1a1a', fg='#FF007F', insertbackground='white',
+            ent_exp = tk.Entry(row_f, textvariable=exp_var, bg=CHARCOAL_TEXT, fg=NEON_PINK, insertbackground='white',
                                bd=1, relief="solid", font=('Arial', 8, 'bold'), width=7, justify="right")
             ent_exp.grid(row=0, column=2, sticky="ew", padx=2)
 
@@ -989,13 +989,13 @@ class MonthlyFinancialsView:
                 var.set(new_state)
                 self.records[r_idx]["is_forecast"] = new_state
                 if btn:
-                    btn.config(text="Fcst" if new_state else "Act", fg='#ffaa00' if new_state else '#00FF66')
+                    btn.config(text="Fcst" if new_state else "Act", fg=NEON_GOLD if new_state else NEON_GREEN)
                 if m_ent:
-                    m_ent.config(fg='#888888' if new_state else 'white')
+                    m_ent.config(fg=MUTED_GRAY if new_state else 'white')
                 self.redraw_chart()
 
-            type_btn = tk.Button(row_f, text="Fcst" if rec["is_forecast"] else "Act", bg='#1e1e1e',
-                                 fg='#ffaa00' if rec["is_forecast"] else '#00FF66',
+            type_btn = tk.Button(row_f, text="Fcst" if rec["is_forecast"] else "Act", bg=AXIS_GRAY,
+                                 fg=NEON_GOLD if rec["is_forecast"] else NEON_GREEN,
                                  font=('Arial', 7, 'bold'), bd=0, width=4, cursor="hand2")
             type_btn.config(command=lambda i=idx, v=fc_var, b=type_btn, m=ent_mo: toggle_forecast_flag(i, v, b, m))
             type_btn.grid(row=0, column=3, sticky="ew", padx=2)
@@ -1143,13 +1143,13 @@ class MonthlyFinancialsView:
         # Use white when balanced within $1.00 so tiny rounding fractions never flash red
         if abs(net) < 1.0:
             net_txt = "Net Position: $0"
-            net_fg = "#ffffff"
+            net_fg = PURE_WHITE
         elif net > 0:
             net_txt = f"Net Position: +${net:,.0f}"
-            net_fg = "#00FF66"
+            net_fg = NEON_GREEN
         else:
             net_txt = f"Net Position: -${abs(net):,.0f}"
-            net_fg = "#FF3300"
+            net_fg = NEON_RED
 
         self.net_pos_lbl.config(text=net_txt, fg=net_fg)
         return active_recs, months, np.array(inc_vals), np.array(exp_vals), is_fc_flags
@@ -1362,11 +1362,11 @@ class MonthlyFinancialsView:
 
         idx, rec, line_type, target_y = hit
         if line_type == "Net":
-            border_color = '#00FF66' if target_y >= 0 else '#FF3300'
+            border_color = NEON_GREEN if target_y >= 0 else NEON_RED
         elif line_type == "Filtered" and getattr(self, 'hovered_filtered_series', None):
-            border_color = self.hovered_filtered_series.get("color", '#00F0FF')
+            border_color = self.hovered_filtered_series.get("color", NEON_CYAN)
         else:
-            border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
+            border_color = NEON_CYAN if line_type == "Income" else NEON_PINK
 
         if self.hover_vline_top and self.hover_vline_bot:
             self.hover_vline_top.set_xdata([idx, idx]); self.hover_vline_top.set_visible(True)
@@ -1397,10 +1397,10 @@ class MonthlyFinancialsView:
 
         self.tooltip = tk.Toplevel(self.app.root)
         self.tooltip.wm_overrideredirect(True)
-        self.tooltip.configure(bg='#e0e0e0', highlightbackground=border_color, highlightthickness=2, bd=0)
-        tk.Label(self.tooltip, text=f"--- {scope_prefix}{rec['month']} {line_type}{tag_suffix} ---", bg='#e0e0e0', fg='#1a1a1a', font=('Arial', 10, 'bold'), padx=10).pack(fill="x", pady=(8, 4))
-        tk.Label(self.tooltip, text=body_txt, bg='#e0e0e0', fg='#1a1a1a', font=('Consolas', 9, 'bold'), justify="left", padx=10).pack(fill="x", pady=(0, 4))
-        self.tooltip_hint_lbl = tk.Label(self.tooltip, text="[Left-Click to Pin | Right-Click to Zoom]", bg='#e0e0e0', fg='#444444', font=('Arial', 8, 'italic'), padx=10)
+        self.tooltip.configure(bg=SILVER_TEXT, highlightbackground=border_color, highlightthickness=2, bd=0)
+        tk.Label(self.tooltip, text=f"--- {scope_prefix}{rec['month']} {line_type}{tag_suffix} ---", bg=SILVER_TEXT, fg=CHARCOAL_TEXT, font=('Arial', 10, 'bold'), padx=10).pack(fill="x", pady=(8, 4))
+        tk.Label(self.tooltip, text=body_txt, bg=SILVER_TEXT, fg=CHARCOAL_TEXT, font=('Consolas', 9, 'bold'), justify="left", padx=10).pack(fill="x", pady=(0, 4))
+        self.tooltip_hint_lbl = tk.Label(self.tooltip, text="[Left-Click to Pin | Right-Click to Zoom]", bg=SILVER_TEXT, fg=AXIS_GRAY, font=('Arial', 8, 'italic'), padx=10)
         self.tooltip_hint_lbl.pack(fill="x", pady=(0, 8))
 
         # Allow dragging a frozen tooltip card to reposition it, or clicking to unpin
@@ -1446,7 +1446,7 @@ class MonthlyFinancialsView:
         elif self.tooltip:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
-                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin | Right-Click to Zoom]", fg='#006688')
+                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin | Right-Click to Zoom]", fg=PINNED_TEAL)
 
     def handle_click(self, event):
         if self.modal_active or self.view_profile_var.get() == "Silence All Tooltips":
@@ -1474,20 +1474,20 @@ class MonthlyFinancialsView:
         manual_sized = {"active": False}
 
         if line_type == "Net":
-            border_color = '#00FF66' if total_val >= 0 else '#FF3300'
+            border_color = NEON_GREEN if total_val >= 0 else NEON_RED
         else:
-            border_color = '#00F0FF' if line_type == "Income" else '#FF007F'
+            border_color = NEON_CYAN if line_type == "Income" else NEON_PINK
 
         scope_prefix = "YTD THRU " if self.chart_mode_var.get() == "Cumulative" else ""
         tag_suffix = "(FORECAST)" if rec["is_forecast"] else "(ACTUAL)"
         modal_title = f" {scope_prefix}{rec['month'].upper()} {line_type.upper()} {tag_suffix} "
 
         self.zoom_modal = tk.Toplevel(self.app.root)
-        self.zoom_modal.configure(bg='#161616', highlightbackground=border_color, highlightthickness=2, bd=0)
+        self.zoom_modal.configure(bg=ZOOM_BG, highlightbackground=border_color, highlightthickness=2, bd=0)
         self.zoom_modal.wm_overrideredirect(True)
 
-        tk.Frame(self.zoom_modal, bg='#161616', height=18).pack(side="top")
-        title_lbl = tk.Label(self.zoom_modal, text=modal_title, bg='#161616', fg='white', font=('Arial', 16, 'bold'))
+        tk.Frame(self.zoom_modal, bg=ZOOM_BG, height=18).pack(side="top")
+        title_lbl = tk.Label(self.zoom_modal, text=modal_title, bg=ZOOM_BG, fg='white', font=('Arial', 16, 'bold'))
         title_lbl.pack(side="top", fill="x", padx=30, pady=4)
         tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(side="top", fill="x", padx=35, pady=(2, 8))
 
@@ -1498,10 +1498,10 @@ class MonthlyFinancialsView:
                 self.zoom_modal = None
             self.modal_active = False
 
-        footer = tk.Frame(self.zoom_modal, bg='#161616')
+        footer = tk.Frame(self.zoom_modal, bg=ZOOM_BG)
         footer.pack(side="bottom", fill="x", pady=(6, 10))
 
-        grip = tk.Label(footer, text="◢", bg='#161616', fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
+        grip = tk.Label(footer, text="◢", bg=ZOOM_BG, fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
         grip.pack(side="right", anchor="se", padx=(0, 6))
 
         drag_resize = {"x": 0, "y": 0, "w": 0, "h": 0}
@@ -1523,17 +1523,17 @@ class MonthlyFinancialsView:
         grip.bind("<B1-Motion>", on_grip_drag)
 
         hint_lbl = tk.Label(footer, text="Click Category to Expand  |  Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner  |  ESC to Close",
-                            bg='#161616', fg='#777777', font=('Arial', 9, 'italic'))
+                            bg=ZOOM_BG, fg=HINT_GRAY, font=('Arial', 9, 'italic'))
         hint_lbl.pack(side="top", pady=(0, 6))
-        tk.Button(footer, text="[ Close Ledger View ]", command=close_modal, bg='#161616', fg='#aaaaaa',
+        tk.Button(footer, text="[ Close Ledger View ]", command=close_modal, bg=ZOOM_BG, fg=SOFT_GRAY,
                   font=('Arial', 12, 'bold'), bd=0, cursor="hand2").pack(side="top")
 
-        vp = tk.Frame(self.zoom_modal, bg='#161616')
+        vp = tk.Frame(self.zoom_modal, bg=ZOOM_BG)
         vp.pack(side="top", fill="both", expand=True, padx=25, pady=5)
-        z_can = tk.Canvas(vp, bg='#161616', bd=0, highlightthickness=0)
+        z_can = tk.Canvas(vp, bg=ZOOM_BG, bd=0, highlightthickness=0)
         h_sb, v_sb = tk.Scrollbar(vp, orient="horizontal", command=z_can.xview), tk.Scrollbar(vp, orient="vertical", command=z_can.yview)
         z_can.configure(xscrollcommand=h_sb.set, yscrollcommand=v_sb.set)
-        inner_f = tk.Frame(z_canvas := z_can, bg='#161616')
+        inner_f = tk.Frame(z_canvas := z_can, bg=ZOOM_BG)
         win_id = z_can.create_window((0, 0), window=inner_f, anchor="nw")
         def sync_vp(e=None):
             inner_f.update_idletasks(); z_can.update_idletasks()
@@ -1583,14 +1583,14 @@ class MonthlyFinancialsView:
                 v_str = f"${r_val:,.0f}"
                 dots = m_grid[len(r_lbl)+1:grid_w-len(v_str)-1]
                 line_txt = f" {r_lbl} {dots} {v_str} "
-                fg_c = "white" if is_hdr else "#bbbbbb"
-                lbl_w = tk.Label(inner_f, text=line_txt, bg='#161616', fg=fg_c,
+                fg_c = "white" if is_hdr else SUBITEM_GRAY
+                lbl_w = tk.Label(inner_f, text=line_txt, bg=ZOOM_BG, fg=fg_c,
                                  font=('Consolas', self.zoom_font_size, 'bold' if is_hdr else 'normal'),
                                  anchor="w", cursor="hand2" if can_click else "")
                 lbl_w.pack(fill="x", padx=6, pady=1)
                 if can_click:
-                    lbl_w.bind("<Enter>", lambda e, w=lbl_w: w.config(bg='#242424', fg=border_color))
-                    lbl_w.bind("<Leave>", lambda e, w=lbl_w: w.config(bg='#161616', fg='white'))
+                    lbl_w.bind("<Enter>", lambda e, w=lbl_w: w.config(bg=ROW_HOVER_BG, fg=border_color))
+                    lbl_w.bind("<Leave>", lambda e, w=lbl_w: w.config(bg=ZOOM_BG, fg='white'))
                     lbl_w.bind("<Button-1>", lambda e, k=c_key: toggle_cat(k))
 
             resize_modal()
@@ -1633,13 +1633,13 @@ class MonthlyFinancialsView:
     def prompt_and_export_chart(self):
         dlg = tk.Toplevel(self.app.root)
         dlg.title("Export Chart Background")
-        dlg.configure(bg='#1c1c1c', highlightbackground='#00FF66', highlightthickness=1)
+        dlg.configure(bg=MODAL_BG, highlightbackground=NEON_GREEN, highlightthickness=1)
         dlg.geometry(f"360x210+{self.app.root.winfo_x() + (self.app.root.winfo_width()//2) - 180}+{self.app.root.winfo_y() + (self.app.root.winfo_height()//2) - 105}")
         dlg.transient(self.app.root); dlg.grab_set()
-        tk.Label(dlg, text="CHOOSE EXPORT BACKGROUND STYLE", bg='#1c1c1c', fg='#00FF66', font=('Arial', 10, 'bold')).pack(pady=(15, 6))
+        tk.Label(dlg, text="CHOOSE EXPORT BACKGROUND STYLE", bg=MODAL_BG, fg=NEON_GREEN, font=('Arial', 10, 'bold')).pack(pady=(15, 6))
         chosen = {"theme": None}
         def pick(t): chosen["theme"] = t; dlg.grab_release(); dlg.destroy()
-        for lbl, val, bg, fg in [("Dark Theme (Black)", "dark", "#111111", "#00F0FF"), ("White Background (Newsletter / Print)", "white", "#FFFFFF", "#1a1a1a"), ("Transparent Background", "transparent", "#2a2a2a", "white")]:
+        for lbl, val, bg, fg in [("Dark Theme (Black)", "dark", DARK_BG, NEON_CYAN), ("White Background (Newsletter / Print)", "white", PURE_WHITE, CHARCOAL_TEXT), ("Transparent Background", "transparent", BUTTON_BG, "white")]:
             tk.Button(dlg, text=lbl, command=lambda v=val: pick(v), bg=bg, fg=fg, font=('Arial', 9, 'bold'), pady=5, cursor="hand2").pack(fill="x", padx=25, pady=3)
         dlg.bind("<Escape>", lambda e: pick(None)); self.app.root.wait_window(dlg)
         if not chosen["theme"]: return

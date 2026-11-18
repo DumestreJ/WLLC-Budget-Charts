@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from budget_view import BudgetView
 from monthly_financials import MonthlyFinancialsView
+from utility_methods import *  # Imports cleanly from your support module
 
 
 class ChurchFinanceApp:
@@ -12,48 +13,48 @@ class ChurchFinanceApp:
         self.root.title("West Linn Lutheran Church - Financial & Budget Dashboard")
         self.root.geometry("1280x760")
         self.root.minsize(920, 600)
-        self.root.configure(bg='#111111')
+        self.root.configure(bg=DARK_BG)
 
         desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
         self.active_mode_var = tk.StringVar(value="Budget")
 
-        self.paned_window = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, bg='#262626', sashwidth=4, bd=0)
+        self.paned_window = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, bg=GRID_SLATE, sashwidth=4, bd=0)
         self.paned_window.pack(fill="both", expand=True)
 
         # Shared Left Panel Container with Top Mode Switcher Bar
-        self.left_panel = tk.Frame(self.paned_window, bg='#111111')
+        self.left_panel = tk.Frame(self.paned_window, bg=DARK_BG)
         self.paned_window.add(self.left_panel, minsize=220)
 
-        mode_bar = tk.Frame(self.left_panel, bg='#1a1a1a', pady=4, padx=6)
+        mode_bar = tk.Frame(self.left_panel, bg=CHARCOAL_TEXT, pady=4, padx=6)
         mode_bar.pack(side="top", fill="x")
 
         self.btn_mode_budget = tk.Button(
-            mode_bar, text="Budget", bg='#00F0FF', fg='black',
+            mode_bar, text="Budget", bg=NEON_CYAN, fg='black',
             font=('Arial', 9, 'bold'), bd=0, pady=4, cursor="hand2",
             command=lambda: self.switch_mode("Budget")
         )
         self.btn_mode_budget.pack(side="left", fill="x", expand=True, padx=(0, 2))
 
         self.btn_mode_fin = tk.Button(
-            mode_bar, text="Monthly Financials", bg='#262626', fg='#aaaaaa',
+            mode_bar, text="Monthly Financials", bg=GRID_SLATE, fg=SOFT_GRAY,
             font=('Arial', 9, 'bold'), bd=0, pady=4, cursor="hand2",
             command=lambda: self.switch_mode("Financials")
         )
         self.btn_mode_fin.pack(side="left", fill="x", expand=True, padx=(2, 0))
 
-        self.budget_left_frame = tk.Frame(self.left_panel, bg='#111111')
+        self.budget_left_frame = tk.Frame(self.left_panel, bg=DARK_BG)
         self.budget_left_frame.pack(side="top", fill="both", expand=True)
-        self.fin_left_frame = tk.Frame(self.left_panel, bg='#111111')
+        self.fin_left_frame = tk.Frame(self.left_panel, bg=DARK_BG)
 
         # Shared Right Panel Container
-        self.right_panel = tk.Frame(self.paned_window, bg='#111111')
+        self.right_panel = tk.Frame(self.paned_window, bg=DARK_BG)
         self.paned_window.add(self.right_panel, minsize=400)
         self.right_panel.rowconfigure(0, weight=1)
         self.right_panel.columnconfigure(0, weight=1)
 
-        self.budget_right_frame = tk.Frame(self.right_panel, bg='#111111')
+        self.budget_right_frame = tk.Frame(self.right_panel, bg=DARK_BG)
         self.budget_right_frame.grid(row=0, column=0, sticky="nsew")
-        self.fin_right_frame = tk.Frame(self.right_panel, bg='#111111')
+        self.fin_right_frame = tk.Frame(self.right_panel, bg=DARK_BG)
 
         # Instantiate both self-contained views
         self.budget_view = BudgetView(self, self.budget_left_frame, self.budget_right_frame)
@@ -104,30 +105,30 @@ class ChurchFinanceApp:
         self.tooltip_frozen = False
 
         if mode == "Budget":
-            self.btn_mode_budget.config(bg='#00F0FF', fg='black')
-            self.btn_mode_fin.config(bg='#262626', fg='#aaaaaa')
+            self.btn_mode_budget.config(bg=NEON_CYAN, fg='black')
+            self.btn_mode_fin.config(bg=GRID_SLATE, fg=SOFT_GRAY)
             self.fin_left_frame.pack_forget()
             self.budget_left_frame.pack(side="top", fill="both", expand=True)
             self.fin_right_frame.grid_forget()
             self.budget_right_frame.grid(row=0, column=0, sticky="nsew")
             self.budget_view.on_resize(forced=True)
         else:
-            self.btn_mode_budget.config(bg='#262626', fg='#aaaaaa')
-            self.btn_mode_fin.config(bg='#FF007F', fg='black')
+            self.btn_mode_budget.config(bg=GRID_SLATE, fg=SOFT_GRAY)
+            self.btn_mode_fin.config(bg=NEON_PINK, fg='black')
             self.budget_left_frame.pack_forget()
             self.budget_right_frame.grid_forget()
 
             # 1. Cover BOTH panels with a dark busy overlay first so no half-drawn widgets flash
             self.root.config(cursor="watch")
-            busy_right = tk.Frame(self.right_panel, bg='#111111')
+            busy_right = tk.Frame(self.right_panel, bg=DARK_BG)
             busy_right.grid(row=0, column=0, sticky="nsew")
             tk.Label(
                 busy_right,
                 text="Rendering Monthly Financials...\nPlease wait",
-                bg='#161616', fg='#00F0FF',
+                bg=ZOOM_BG, fg=NEON_CYAN,
                 font=('Arial', 13, 'bold'),
                 padx=30, pady=20,
-                highlightbackground='#00F0FF', highlightthickness=1
+                highlightbackground=NEON_CYAN, highlightthickness=1
             ).place(relx=0.5, rely=0.5, anchor="center")
             busy_right.lift()
             self.root.update()

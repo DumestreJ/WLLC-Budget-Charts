@@ -4,8 +4,8 @@ from tkinter import filedialog, messagebox, ttk
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 import re
-from utility_methods import show_import_help
 from monthly_importer import parse_budget_vs_actual_sheet
+from utility_methods import *  # Imports cleanly from your support module
 
 
 def _discover_sheet_columns(ws):
@@ -135,7 +135,7 @@ def import_excel_budget(app):
     try:
         selector = tk.Toplevel(app.root)
         selector.title("Import Spreadsheet Budget")
-        selector.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+        selector.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
         selector.geometry("510x375")
         selector.transient(app.root)
         selector.grab_set()
@@ -144,40 +144,40 @@ def import_excel_budget(app):
         my = app.root.winfo_y() + (app.root.winfo_height() // 2) - 187
         selector.geometry(f"+{max(20, mx)}+{max(20, my)}")
 
-        tk.Label(selector, text="IMPORT SPREADSHEET BUDGET", bg='#1c1c1c', fg='#00F0FF',
+        tk.Label(selector, text="IMPORT SPREADSHEET BUDGET", bg=MODAL_BG, fg=NEON_CYAN,
                  font=('Arial', 10, 'bold')).pack(pady=(14, 8))
 
         # 1. Source Layout Mode Selector (Annual Single Column vs. Financials Monthly Columns)
         source_mode_var = tk.StringVar(value="annual")
-        mode_frame = tk.Frame(selector, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+        mode_frame = tk.Frame(selector, bg=RECESSED_BG, highlightbackground=BORDER_GRAY, highlightthickness=1)
         mode_frame.pack(fill="x", padx=25, pady=(2, 10))
 
         tk.Radiobutton(
             mode_frame, text="Annual Budget Sheet (Single Column)",
             variable=source_mode_var, value="annual",
-            bg='#141414', fg='white', selectcolor='#1e1e1e',
-            activebackground='#141414', activeforeground='#00F0FF',
+            bg=RECESSED_BG, fg='white', selectcolor=AXIS_GRAY,
+            activebackground=RECESSED_BG, activeforeground=NEON_CYAN,
             font=('Arial', 9, 'bold'), cursor="hand2"
         ).pack(anchor="w", padx=10, pady=(6, 2))
 
         tk.Radiobutton(
             mode_frame, text="Financials Sheet (Monthly Budget Columns)",
             variable=source_mode_var, value="monthly_bva",
-            bg='#141414', fg='white', selectcolor='#1e1e1e',
-            activebackground='#141414', activeforeground='#00F0FF',
+            bg=RECESSED_BG, fg='white', selectcolor=AXIS_GRAY,
+            activebackground=RECESSED_BG, activeforeground=NEON_CYAN,
             font=('Arial', 9, 'bold'), cursor="hand2"
         ).pack(anchor="w", padx=10, pady=(2, 6))
 
         # 2. Excel File Browser Row
-        frm_file = tk.Frame(selector, bg='#1c1c1c')
+        frm_file = tk.Frame(selector, bg=MODAL_BG)
         frm_file.pack(fill="x", padx=25, pady=6)
-        tk.Label(frm_file, text="Excel File:", bg='#1c1c1c', fg='white',
+        tk.Label(frm_file, text="Excel File:", bg=MODAL_BG, fg='white',
                  font=('Arial', 9, 'bold'), width=15, anchor="w").pack(side="left")
 
         file_display_var = tk.StringVar(value="No file selected")
-        lbl_file = tk.Label(frm_file, textvariable=file_display_var, bg='#141414', fg='#aaaaaa',
+        lbl_file = tk.Label(frm_file, textvariable=file_display_var, bg=RECESSED_BG, fg=SOFT_GRAY,
                             font=('Arial', 8), anchor="w", padx=8, pady=4,
-                            highlightbackground='#333333', highlightthickness=1)
+                            highlightbackground=BORDER_GRAY, highlightthickness=1)
         lbl_file.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
         wb = None
@@ -200,7 +200,7 @@ def import_excel_budget(app):
             try:
                 wb = load_workbook(picked_path, data_only=True)
                 file_display_var.set(os.path.basename(picked_path))
-                lbl_file.config(fg='#00F0FF')
+                lbl_file.config(fg=NEON_CYAN)
                 tab_choices = ["Select tab"] + list(wb.sheetnames)
                 cb_sheet.config(values=tab_choices, state="readonly")
                 selected_tab_var.set("Select tab")
@@ -210,21 +210,21 @@ def import_excel_budget(app):
                 messagebox.showerror("Workbook Error", f"Could not read Excel file:\n{load_err}", parent=selector)
 
         tk.Button(frm_file, text="Browse...", command=browse_excel_file,
-                  bg='#2a2a2a', fg='#00F0FF', font=('Arial', 8, 'bold'),
+                  bg=BUTTON_BG, fg=NEON_CYAN, font=('Arial', 8, 'bold'),
                   padx=10, pady=4, bd=1, relief="solid", cursor="hand2").pack(side="right")
         # 3. Worksheet Tab & Budget Column Selectors
-        frm_tab = tk.Frame(selector, bg='#1c1c1c')
+        frm_tab = tk.Frame(selector, bg=MODAL_BG)
         frm_tab.pack(fill="x", padx=25, pady=6)
-        tk.Label(frm_tab, text="Worksheet Tab:", bg='#1c1c1c', fg='white',
+        tk.Label(frm_tab, text="Worksheet Tab:", bg=MODAL_BG, fg='white',
                  font=('Arial', 9, 'bold'), width=15, anchor="w").pack(side="left")
 
         cb_sheet = ttk.Combobox(frm_tab, textvariable=selected_tab_var, values=["Select file first..."],
                                 state="disabled", width=32)
         cb_sheet.pack(side="right", fill="x", expand=True)
 
-        frm_col = tk.Frame(selector, bg='#1c1c1c')
+        frm_col = tk.Frame(selector, bg=MODAL_BG)
         frm_col.pack(fill="x", padx=25, pady=6)
-        lbl_col = tk.Label(frm_col, text="Budget Column:", bg='#1c1c1c', fg='white',
+        lbl_col = tk.Label(frm_col, text="Budget Column:", bg=MODAL_BG, fg='white',
                            font=('Arial', 9, 'bold'), width=15, anchor="w")
         lbl_col.pack(side="left")
 
@@ -234,7 +234,7 @@ def import_excel_budget(app):
 
         def sync_mode_ui(*args):
             if source_mode_var.get() == "monthly_bva":
-                lbl_col.config(fg='#666666')
+                lbl_col.config(fg=DIVIDER_GRAY)
                 cb_col.config(state="disabled")
                 selected_col_var.set("Auto-Sum Monthly 'Budget' Columns")
             else:
@@ -306,15 +306,15 @@ def import_excel_budget(app):
             selector.grab_release()
             selector.destroy()
 
-        btn_row = tk.Frame(selector, bg='#1c1c1c')
+        btn_row = tk.Frame(selector, bg=MODAL_BG)
         btn_row.pack(side="bottom", pady=16)
         tk.Button(btn_row, text="? Info",
                   command=lambda: show_import_help(selector, "Budget Import Guide", BUDGET_HELP_TEXT),
-                  bg='#2a2a2a', fg='#00F0FF', font=('Arial', 9, 'bold'),
+                  bg=BUTTON_BG, fg=NEON_CYAN, font=('Arial', 9, 'bold'),
                   padx=12, pady=5, bd=1, relief="solid", cursor="hand2").pack(side="left", padx=(0, 10))
-        tk.Button(btn_row, text="Cancel", command=cancel_selection, bg='#2a2a2a', fg='white',
+        tk.Button(btn_row, text="Cancel", command=cancel_selection, bg=BUTTON_BG, fg='white',
                   font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=8)
-        tk.Button(btn_row, text="Import Selected Tab", command=confirm_selection, bg='#00F0FF', fg='black',
+        tk.Button(btn_row, text="Import Selected Tab", command=confirm_selection, bg=NEON_CYAN, fg='black',
                   font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=8)
 
         selector.bind("<Escape>", lambda e: cancel_selection())
@@ -524,10 +524,10 @@ def import_excel_budget(app):
                 app.expense_inputs.append((lbl_var, val_var))
 
         tk.Button(app.inc_frame, text="+ Add Income Item", command=lambda: app.add_blank_row("Income"),
-                  bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
+                  bg=DARK_BG, fg=NEON_CYAN, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
 
         tk.Button(app.exp_frame, text="+ Add Expense Item", command=lambda: app.add_blank_row("Expense"),
-                  bg='#111111', fg='#FF007F', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
+                  bg=DARK_BG, fg=NEON_PINK, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
 
         layout_maps = [
             (app.inc_frame, app.inc_title_row, app.inc_other_lbl),
@@ -586,7 +586,7 @@ def import_excel_budget(app):
                            isinstance(c, tk.Entry) and hasattr(c, 'get')):
                         for child in widget.winfo_children():
                             if isinstance(child, tk.Entry):
-                                child.config(disabledforeground='#FF007F', fg='#FF007F')
+                                child.config(disabledforeground=NEON_PINK, fg=NEON_PINK)
 
         app.process_inputs()
         if hasattr(app, 'data_source_var'):

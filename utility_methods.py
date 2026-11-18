@@ -5,23 +5,121 @@ import tkinter as tk
 from tkinter import ttk
 
 plt.style.use('dark_background')
-NEON_COLORS = ['#FF007F', '#00F0FF', '#FF00FF', '#7000FF', '#FFB800', '#00FF66', '#FF3300']
+
+PURE_WHITE = '#FFFFFF'
+
+# Dark & Neutral UI Shades
+DARK_BG = '#111111' # Primary deep-black app and chart canvas background.
+CHARCOAL_TEXT = '#1a1a1a' # High-contrast dark ink text used on light export charts and tooltip cards.
+GRID_SLATE = '#262626' # Subtle dark-mode gridlines and inactive button surfaces.
+LIGHT_GRID = '#dddddd' # Subtle light-mode gridlines for exported PNG charts.
+SILVER_TEXT = '#e0e0e0' # Crisp off-white foreground text and labels on dark backgrounds.
+
+# Light-Theme Export Counterparts (High-Contrast Print/PNG)
+PRINT_CYAN = '#0088AA' # High-contrast teal/cyan counterpart to NEON_CYAN on white backgrounds.
+PRINT_PINK = '#D60066' # High-contrast magenta-pink counterpart to NEON_PINK on white backgrounds.
+PRINT_GREEN = '#009944' # High-contrast emerald counterpart to NEON_GREEN on white backgrounds.
+PRINT_AMBER = '#B37700' # High-contrast gold/amber counterpart to NEON_AMBER on white backgrounds.
+LIGHT_LEGEND_BG = '#f4f4f4' # Soft off-white background used for the chart legend box on light-theme PNG
+                            # exports so it separates subtly from the PURE_WHITE (#FFFFFF) canvas.
+
+# Neutral Divider & Muted Label Grays
+DIVIDER_GRAY = '#666666' # Medium neutral gray used for the vertical Actual | Forecast boundary line (axvline).
+MUTED_GRAY = '#888888' # Slightly lighter muted gray used for the "Forecast →" label and forecast month badges (Fcst).
+AXIS_GRAY = '#444444' # Medium-dark neutral gray used for the visible bottom/left chart axis spines and subtle footer hint text.
+
+# Pie chart Subtitle & Wedge Edge Shades
+SLATE_GRAY = '#555555' # Medium-dark neutral gray used for secondary subtitles on light backgrounds.
+SOFT_GRAY = '#aaaaaa' # Light-medium gray used for secondary subtitles and inactive button text on dark backgrounds.
+DARK_EDGE = '#222222' # Deep charcoal used for crisp slice borders (edge_color) between dark-mode pie wedges.
+
+# Dialog, Control Surface & Modal Surface Shade
+MODAL_BG = '#1c1c1c' # Elevated dark charcoal background used for popup dialogs and help windows so they
+                     # stand out cleanly above the DARK_BG main
+ZOOM_BG = '#161616' # Elevated near-black surface used for the Sanctuary Zoom Ledger modal and floating tooltips
+                    # so they stand out cleanly above the DARK_BG main canvas.
+
+# Treeview Selection Surface Shade
+SELECT_TEAL_BG = '#263842' # Deep slate-teal background used for selected rows inside the Filter.Treeview widget
+                           # so NEON_CYAN (#00F0FF) selected text stands out clearly without harsh glare.
+
+# Recessed Scroll Surface & Border Shades
+RECESSED_BG = '#141414' # Slightly deeper dark surface used inside scrollable text frames and canvas viewports so they
+                        # sit recessed within MODAL_BG (#1c1c1c).
+CONTROL_BG = '#1e1e1e'  # Dark charcoal fill used for interactive input fields, radio/checkbutton selection wells
+                        # (selectcolor), and toggle buttons.
+BORDER_GRAY = '#333333' # Subtle dark gray used for 1px container borders (highlightbackground) and thin horizontal
+                        # dividers.
+BUTTON_BG = '#2a2a2a'   # Medium-dark charcoal fill used for secondary action buttons (Browse..., Cancel, ? Info)
+                        # and custom scrollbar thumb handles so they stand out cleanly against MODAL_BG
+                        # (#1c1c1c) and CONTROL_BG (#1e1e1e).
+
+# Alert Highlight Background Shade
+ALERT_CRIMSON_BG = '#550011' # Deep crimson background used to highlight over-budget or negative-balance rows (red_lbl)
+                             # behind NEON_RED (#FF3300) foreground text.
+
+# Pinned Tooltip Status Accent
+PINNED_TEAL = '#006688' # Deep ocean teal used for the [Pinned — Drag to Move | Click to Unpin] status prompt on the
+                        # light-gray (SILVER_TEXT) tooltip card so it stays crisp and easy to read when pinned.
+
+# Hover Accent Shades
+HOVER_MAGENTA = '#ff66ff' # Lighter glowing tint of NEON_MAGENTA used on button press/hover (activebackground).
+HOVER_CYAN = '#66f5ff'    # Lighter glowing tint of NEON_CYAN used on button press/hover (activebackground).
+HOVER_GOLD = '#ffcc66'    # Lighter glowing tint of NEON_GOLD used on button press/hover (activebackground).
+HOVER_GREEN = '#66ff99'   # Lighter glowing tint of NEON_GREEN used on button press/hover (activebackground).
+
+# Secondary Italic & Hint Label Shade
+HINT_GRAY = '#777777' # Medium neutral gray used for italic implied-remainder rows (Other Income, Other Expenses),
+                      # zoom footer instructions, and scrollbar arrow indicators.
+SUBITEM_GRAY = '#bbbbbb' # Soft light gray used for indented subcategory detail lines (• ...) inside the Sanctuary
+                         # Zoom Ledger modal so they recede slightly below bold PURE_WHITE parent headers.
+ROW_HOVER_BG = '#242424' # Subtle dark-gray highlight used on mouse hover (<Enter>) for expandable category rows
+                         # inside the Sanctuary Zoom Ledger modal.
+
+# Colors used for buttons, pie wedges and linechart lines
+NEON_PINK = '#FF007F'     # Expenses / Negative / Expense Accent
+NEON_CYAN = '#00F0FF'     # Income / Primary Action / Active Accent
+NEON_MAGENTA = '#FF00FF'  # Secondary Series / Category Palette
+NEON_PURPLE = '#7000FF'   # Tertiary Series / Category Palette
+NEON_AMBER = '#FFB800'    # Budget Benchmark / Forecast Warning
+NEON_GREEN = '#00FF66'    # Positive Net Surplus / Actual Badge
+NEON_RED = '#FF3300'      # Deficit / Alert / Over-Budget
+NEON_VIOLET = '#B366FF'   # Bright electric violet/lavender used as an extra category accent.
+NEON_ORANGE = '#FF6600'   # Vivid neon tangerine/orange used as an extra category accent.
+NEON_SKY = '#33CCFF'      # Bright electric sky blue used as an extra category accent.
+NEON_ROSE = '#FF66B2'     # Bright pastel-neon rose pink used as an extra category accent.
+NEON_GOLD = '#FFaa00'     # Warm gold/orange used for the primary Create / Update CSV File button (btn_save) and forecast status badges (Fcst).
+
+NEON_COLORS = [
+    NEON_PINK,
+    NEON_CYAN,
+    NEON_MAGENTA,
+    NEON_PURPLE,
+    NEON_AMBER,
+    NEON_GREEN,
+    NEON_RED,
+    NEON_VIOLET,
+    NEON_ORANGE,
+    NEON_SKY,
+    NEON_ROSE,
+    NEON_GOLD
+]
 
 
 def create_smart_pie(fig, sizes, labels, total_value, title, title_color, current_font_size=9, y_threshold=0.16, theme="dark"):
     is_light = theme in ("white", "transparent")
-    bg_color = "none" if theme == "transparent" else ("#FFFFFF" if theme == "white" else "#111111")
-    fg_color = "#1a1a1a" if is_light else "white"
-    sub_color = "#555555" if is_light else "#aaaaaa"
-    edge_color = "#FFFFFF" if is_light else "#222222"
+    bg_color = "none" if theme == "transparent" else (PURE_WHITE if theme == "white" else DARK_BG)
+    fg_color = CHARCOAL_TEXT if is_light else "white"
+    sub_color = SLATE_GRAY if is_light else SOFT_GRAY
+    edge_color = PURE_WHITE if is_light else DARK_EDGE
 
     # Deepen bright neon title colors slightly on light backgrounds so they read crisply in print/email
     effective_title_color = title_color
     if is_light:
-        if title_color.upper() == "#00F0FF":
-            effective_title_color = "#0088AA"
-        elif title_color.upper() == "#FF007F":
-            effective_title_color = "#D60066"
+        if title_color.upper() == NEON_CYAN:
+            effective_title_color = PRINT_CYAN
+        elif title_color.upper() == NEON_PINK:
+            effective_title_color = PRINT_PINK
 
     # 1. COMPLETELY PURGE THE OLD GRAPH AND ALL LINGERING TEXT ENTIRELY
     fig.clf()
@@ -159,13 +257,13 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
     Bottom: Magnified Net Profit/Loss (or Variance vs. Budget when filtered) above/below $0 waterline.
     """
     is_light = theme in ("white", "transparent")
-    bg_color = "none" if theme == "transparent" else ("#FFFFFF" if theme == "white" else "#111111")
-    fg_color = "#1a1a1a" if is_light else "#e0e0e0"
-    grid_color = "#dddddd" if is_light else "#262626"
-    inc_color = "#0088AA" if is_light else "#00F0FF"
-    exp_color = "#D60066" if is_light else "#FF007F"
-    pos_color = "#009944" if is_light else "#00FF66"
-    bud_color = "#B37700" if is_light else "#FFB800"
+    bg_color = "none" if theme == "transparent" else (PURE_WHITE if theme == "white" else DARK_BG)
+    fg_color = CHARCOAL_TEXT if is_light else SILVER_TEXT
+    grid_color = LIGHT_GRID if is_light else GRID_SLATE
+    inc_color = PRINT_CYAN if is_light else NEON_CYAN
+    exp_color = PRINT_PINK if is_light else NEON_PINK
+    pos_color = PRINT_GREEN if is_light else NEON_GREEN
+    bud_color = PRINT_AMBER if is_light else NEON_AMBER
 
     fig.patch.set_facecolor(bg_color)
     if len(fig.axes) == 2:
@@ -252,17 +350,17 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(inc_arr[sb:] >= exp_arr[sb:]), interpolate=True, color=inc_color, alpha=0.07, zorder=2)
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(exp_arr[sb:] > inc_arr[sb:]), interpolate=True, color=exp_color, alpha=0.07, zorder=2)
     if 0 < first_fc_idx < len(months):
-        ax_top.axvline(x=first_fc_idx - 0.5, color='#666666', linestyle='--', linewidth=1.1, zorder=1)
-        ax_bot.axvline(x=first_fc_idx - 0.5, color='#666666', linestyle='--', linewidth=1.1, zorder=1)
+        ax_top.axvline(x=first_fc_idx - 0.5, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
+        ax_bot.axvline(x=first_fc_idx - 0.5, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
         y_top = max(all_top_vals)
-        ax_top.text(first_fc_idx - 0.42, y_top, "Forecast →", color='#888888', fontsize=8, fontweight='bold', va='top')
+        ax_top.text(first_fc_idx - 0.42, y_top, "Forecast →", color=MUTED_GRAY, fontsize=8, fontweight='bold', va='top')
 
     ax_top.set_title(f"{title_text} ({mode_tag} • {surplus_tag})", color=fg_color, fontsize=13.5, fontweight='bold', pad=12)
     ax_top.tick_params(axis='x', labelbottom=False, colors=fg_color)
     ax_top.tick_params(axis='y', colors=fg_color, labelsize=8.5)
     ax_top.yaxis.set_major_formatter('${x:,.0f}')
     ax_top.grid(True, linestyle='--', linewidth=0.6, color=grid_color)
-    leg = ax_top.legend(loc='upper left', frameon=True, facecolor='#1a1a1a' if not is_light else '#f4f4f4', edgecolor='#333333', fontsize=8)
+    leg = ax_top.legend(loc='upper left', frameon=True, facecolor=CHARCOAL_TEXT if not is_light else LIGHT_LEGEND_BG, edgecolor=BORDER_GRAY, fontsize=8)
     for txt in leg.get_texts():
         txt.set_color(fg_color)
 
@@ -273,11 +371,11 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
     y_upper = math.ceil(max_data_y / step) * step
     y_lower = (math.floor(min_data_y / step) * step) if min_data_y < 0 else 0
     if y_lower < 0:
-        ax_top.axhline(0, color='#666666', linewidth=0.9, linestyle='-', zorder=1)
+        ax_top.axhline(0, color=DIVIDER_GRAY, linewidth=0.9, linestyle='-', zorder=1)
     ax_top.set_ylim(y_lower, max(y_upper, step))
 
     # --- BOTTOM PANEL: MAGNIFIED NET P&L OR VARIANCE VS. BUDGET ---
-    ax_bot.axhline(0, color='#888888' if not is_light else '#555555', linewidth=1.1, zorder=2)
+    ax_bot.axhline(0, color=MUTED_GRAY if not is_light else SLATE_GRAY, linewidth=1.1, zorder=2)
     bud_net_mo = 0.0 if is_filtered else (monthly_budget_inc - monthly_budget)
     bud_net_arr = np.array([bud_net_mo * (i + 1) for i in range(len(months))]) if is_cumulative else np.full(len(months), bud_net_mo)
     if not is_filtered and abs(bud_net_mo) > 1.0:
@@ -317,10 +415,10 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
         for spine in ['top', 'right']:
             ax.spines[spine].set_visible(False)
         for spine in ['bottom', 'left']:
-            ax.spines[spine].set_color('#444444')
+            ax.spines[spine].set_color(AXIS_GRAY)
 
-    v_top = ax_top.axvline(x=0, color='#888888', linestyle=':', linewidth=1.2, visible=False, zorder=5)
-    v_bot = ax_bot.axvline(x=0, color='#888888', linestyle=':', linewidth=1.2, visible=False, zorder=5)
+    v_top = ax_top.axvline(x=0, color=MUTED_GRAY, linestyle=':', linewidth=1.2, visible=False, zorder=5)
+    v_bot = ax_bot.axvline(x=0, color=MUTED_GRAY, linestyle=':', linewidth=1.2, visible=False, zorder=5)
     d_top, = ax_top.plot([], [], marker='o', markersize=10, markerfacecolor='none', markeredgewidth=2.2, visible=False, zorder=6)
     d_bot, = ax_bot.plot([], [], marker='o', markersize=10, markerfacecolor='none', markeredgewidth=2.2, visible=False, zorder=6)
     fig.subplots_adjust(left=0.09, right=0.88, top=0.90, bottom=0.10)
@@ -332,7 +430,7 @@ def show_import_help(parent, title, guide_text):
     """
     help_win = tk.Toplevel(parent)
     help_win.title(title)
-    help_win.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+    help_win.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
     help_win.geometry("540x430")
     help_win.minsize(420, 280)
     help_win.transient(parent)
@@ -347,28 +445,28 @@ def show_import_help(parent, title, guide_text):
         help_win.destroy()
 
     # 1. Anchor header to top and "Got It" button to bottom FIRST so resizing never hides them
-    tk.Label(help_win, text=title.upper(), bg='#1c1c1c', fg='#00F0FF',
+    tk.Label(help_win, text=title.upper(), bg=MODAL_BG, fg=NEON_CYAN,
              font=('Arial', 10, 'bold')).pack(side="top", pady=(14, 8))
 
-    btn_bar = tk.Frame(help_win, bg='#1c1c1c')
+    btn_bar = tk.Frame(help_win, bg=MODAL_BG)
     btn_bar.pack(side="bottom", fill="x", pady=(8, 14))
-    tk.Button(btn_bar, text="Got It", command=close_help, bg='#00F0FF', fg='black',
+    tk.Button(btn_bar, text="Got It", command=close_help, bg=NEON_CYAN, fg='black',
               font=('Arial', 9, 'bold'), padx=22, pady=5, bd=0, cursor="hand2").pack()
 
     # 2. Middle scrollable text container fills remaining space cleanly
-    txt_frame = tk.Frame(help_win, bg='#141414', highlightbackground='#333333', highlightthickness=1)
+    txt_frame = tk.Frame(help_win, bg=RECESSED_BG, highlightbackground=BORDER_GRAY, highlightthickness=1)
     txt_frame.pack(side="top", fill="both", expand=True, padx=18, pady=4)
 
-    canvas = tk.Canvas(txt_frame, bg='#141414', bd=0, highlightthickness=0)
+    canvas = tk.Canvas(txt_frame, bg=RECESSED_BG, bd=0, highlightthickness=0)
     v_scroll = ttk.Scrollbar(txt_frame, orient="vertical", command=canvas.yview,
                              style="Dark.Vertical.TScrollbar")
     canvas.configure(yscrollcommand=v_scroll.set)
     canvas.pack(side="left", fill="both", expand=True)
 
-    inner = tk.Frame(canvas, bg='#141414')
+    inner = tk.Frame(canvas, bg=RECESSED_BG)
     win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
 
-    lbl = tk.Label(inner, text=guide_text, bg='#141414', fg='#e0e0e0',
+    lbl = tk.Label(inner, text=guide_text, bg=RECESSED_BG, fg=SILVER_TEXT,
                    font=('Arial', 9), justify="left", anchor="nw", padx=12, pady=10)
     lbl.pack(fill="both", expand=True)
 

@@ -15,7 +15,7 @@ class BudgetView:
         self.main_frame = right_container
 
         self.root.title("Interactive Church Budget Dashboard")
-        self.root.configure(bg='#111111')
+        self.root.configure(bg=DARK_BG)
         self.root.geometry("1300x750")
         self.root.minsize(1000, 550)
 
@@ -37,8 +37,8 @@ class BudgetView:
         self.current_height = 0
 
         # Primary figures and click tracking lists
-        self.fig_income = plt.figure(figsize=(4.5, 4.5), facecolor='#111111')
-        self.fig_expense = plt.figure(figsize=(4.5, 4.5), facecolor='#111111')
+        self.fig_income = plt.figure(figsize=(4.5, 4.5), facecolor=DARK_BG)
+        self.fig_expense = plt.figure(figsize=(4.5, 4.5), facecolor=DARK_BG)
         self.income_wedges = []
         self.expense_wedges = []
 
@@ -84,18 +84,18 @@ class BudgetView:
 
         # Data Source Indicator Banner (Top of Left Panel)
         self.data_source_var = tk.StringVar(value="Source: Default")
-        src_bar = tk.Frame(self.left_panel, bg='#1a1a1a', highlightbackground='#333333', highlightthickness=1)
+        src_bar = tk.Frame(self.left_panel, bg=CHARCOAL_TEXT, highlightbackground=BORDER_GRAY, highlightthickness=1)
         src_bar.pack(side="top", fill="x", padx=5, pady=(8, 2))
-        tk.Label(src_bar, textvariable=self.data_source_var, bg='#1a1a1a', fg='#00F0FF',
+        tk.Label(src_bar, textvariable=self.data_source_var, bg=CHARCOAL_TEXT, fg=NEON_CYAN,
                  font=('Arial', 8, 'bold'), anchor="w", padx=4, pady=3).pack(fill="x")
 
         # ZONE 1: THE DYNAMIC SCROLLABLE VIEWPORT CANVAS DECK (TOP AREA)
         # This frame shrinks to wrap its content tightly
-        scroll_outer_frame = tk.Frame(self.left_panel, bg='#111111')
+        scroll_outer_frame = tk.Frame(self.left_panel, bg=DARK_BG)
         scroll_outer_frame.pack(side="top", fill="x", expand=False, padx=5, pady=(10, 5))
 
         # Explicitly set width=180 to guarantee it fits inside your 220px default startup sash
-        self.scroll_canvas = tk.Canvas(scroll_outer_frame, bg='#111111', bd=0, highlightthickness=0, width=180)
+        self.scroll_canvas = tk.Canvas(scroll_outer_frame, bg=DARK_BG, bd=0, highlightthickness=0, width=180)
         self.scroll_canvas.pack(side="left", fill="both", expand=True)
 
         # CUSTOM DARK STYLE: Use a ttk Scrollbar to mute the bright background color
@@ -103,18 +103,18 @@ class BudgetView:
         style = ttk.Style()
         style.theme_use('clam')
         style.configure("Dark.Vertical.TScrollbar",
-                        background="#2a2a2a",      # Thumb handle gray color
-                        troughcolor="#111111",     # Track gutter dark background color
-                        arrowcolor="#777777",      # Arrow head indicator color
-                        bordercolor="#111111",     # Frame borders
-                        lightcolor="#2a2a2a",
-                        darkcolor="#2a2a2a")
+                        background=BUTTON_BG,      # Thumb handle gray color
+                        troughcolor=DARK_BG,     # Track gutter dark background color
+                        arrowcolor=HINT_GRAY,      # Arrow head indicator color
+                        bordercolor=DARK_BG,     # Frame borders
+                        lightcolor=BUTTON_BG,
+                        darkcolor=BUTTON_BG)
 
         v_scrollbar = ttk.Scrollbar(scroll_outer_frame, orient="vertical", command=self.scroll_canvas.yview,
                                     style="Dark.Vertical.TScrollbar")
         self.scroll_canvas.configure(yscrollcommand=v_scrollbar.set)
 
-        self.scrollable_inner_frame = tk.Frame(self.scroll_canvas, bg='#111111')
+        self.scrollable_inner_frame = tk.Frame(self.scroll_canvas, bg=DARK_BG)
         self.canvas_window_id = self.scroll_canvas.create_window((0, 0), window=self.scrollable_inner_frame,
                                                                  anchor="nw")
 
@@ -168,65 +168,65 @@ class BudgetView:
         self.scroll_canvas.bind_all("<Button-5>", handle_mouse_wheel)
 
         # Main dynamic inner rows containers
-        self.inc_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
+        self.inc_frame = tk.Frame(self.scrollable_inner_frame, bg=DARK_BG)
         self.inc_frame.pack(fill="x", expand=True, padx=(0, 15))
 
-        self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg='#111111')
+        self.exp_frame = tk.Frame(self.scrollable_inner_frame, bg=DARK_BG)
         self.exp_frame.pack(fill="x", expand=True, padx=(0, 15))
 
-        tk.Label(self.inc_frame, text="INCOME CONFIG", fg='#00F0FF', bg='#111111', font=('Arial', 9, 'bold')).pack(
+        tk.Label(self.inc_frame, text="INCOME CONFIG", fg=NEON_CYAN, bg=DARK_BG, font=('Arial', 9, 'bold')).pack(
             anchor="w", pady=(10, 4), padx=5)
-        self.add_title_row(self.inc_frame, self.income_title_var, '#00F0FF')
+        self.add_title_row(self.inc_frame, self.income_title_var, NEON_CYAN)
         self.inc_title_row = self.inc_frame.pack_slaves()[-1]
 
-        tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg='#FF007F', bg='#111111', font=('Arial', 9, 'bold')).pack(
+        tk.Label(self.exp_frame, text="EXPENSE CONFIG", fg=NEON_PINK, bg=DARK_BG, font=('Arial', 9, 'bold')).pack(
             anchor="w", pady=(20, 4), padx=5)
-        self.add_title_row(self.exp_frame, self.expense_title_var, '#FF007F')
+        self.add_title_row(self.exp_frame, self.expense_title_var, NEON_PINK)
         self.exp_title_row = self.exp_frame.pack_slaves()[-1]
 
-        self.inc_other_lbl = tk.Label(self.inc_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
-        self.exp_other_lbl = tk.Label(self.exp_frame, fg='#777777', bg='#111111', font=('Arial', 9, 'italic'))
+        self.inc_other_lbl = tk.Label(self.inc_frame, fg=HINT_GRAY, bg=DARK_BG, font=('Arial', 9, 'italic'))
+        self.exp_other_lbl = tk.Label(self.exp_frame, fg=HINT_GRAY, bg=DARK_BG, font=('Arial', 9, 'italic'))
 
         # ZONE 2: THE NET POSITION SUMMARY BAR (HUGS CONTENT IMMEDIATELY BELOW)
-        summary_outer_frame = tk.Frame(self.left_panel, bg='#111111')
+        summary_outer_frame = tk.Frame(self.left_panel, bg=DARK_BG)
         summary_outer_frame.pack(side="top", fill="x", padx=15, pady=(5, 5))
 
-        top_sep = tk.Frame(summary_outer_frame, height=1, bg='#333333')
+        top_sep = tk.Frame(summary_outer_frame, height=1, bg=BORDER_GRAY)
         top_sep.pack(fill="x", side="top", pady=(0, 4))
 
         self.net_summary_lbl = tk.Label(
             summary_outer_frame, text="Net Position: $0",
-            fg='#ffffff', bg='#111111', font=('Arial', 10, 'bold'), anchor="w"
+            fg=PURE_WHITE, bg=DARK_BG, font=('Arial', 10, 'bold'), anchor="w"
         )
         self.net_summary_lbl.pack(side="left", fill="x", expand=True, padx=5, pady=2)
 
-        bot_sep = tk.Frame(summary_outer_frame, height=1, bg='#333333')
+        bot_sep = tk.Frame(summary_outer_frame, height=1, bg=BORDER_GRAY)
         bot_sep.pack(fill="x", side="bottom", pady=(4, 0))
 
         # ---------------------------------------------------------------------
         # ZONE 3: THE ORIGINAL 4 VERTICALLY STACKED SOLID NEON ACTION BUTTONS
         # ---------------------------------------------------------------------
-        actions_frame = tk.Frame(self.left_panel, bg='#111111')
+        actions_frame = tk.Frame(self.left_panel, bg=DARK_BG)
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
 
         btn_import = tk.Button(actions_frame, text="Import Spreadsheet Budget",
                                command=lambda: import_excel_budget(self),
-                               bg='#FF00FF', fg='black', activebackground='#ff66ff', activeforeground='black',
+                               bg=NEON_MAGENTA, fg='black', activebackground=HOVER_MAGENTA, activeforeground='black',
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_import.pack(fill="x", pady=4)
 
         btn_update = tk.Button(actions_frame, text="Update Charts", command=self.process_inputs,
-                               bg='#00F0FF', fg='black', activebackground='#66f5ff', activeforeground='black',
+                               bg=NEON_CYAN, fg='black', activebackground=HOVER_CYAN, activeforeground='black',
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_update.pack(fill="x", pady=4)
 
         self.btn_save = tk.Button(actions_frame, text="Create CSV File", command=self.save_to_csv,
-                                  bg='#FFaa00', fg='black', activebackground='#ffcc66', activeforeground='black',
+                                  bg=NEON_GOLD, fg='black', activebackground=HOVER_GOLD, activeforeground='black',
                                   font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         self.btn_save.pack(fill="x", pady=4)
 
         btn_export_charts = tk.Button(actions_frame, text="Save Charts to Desktop", command=self.save_charts,
-                                      bg='#00FF66', fg='black', activebackground='#66ff99', activeforeground='black',
+                                      bg=NEON_GREEN, fg='black', activebackground=HOVER_GREEN, activeforeground='black',
                                       font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_export_charts.pack(fill="x", pady=4)
 
@@ -238,7 +238,7 @@ class BudgetView:
         self.main_frame.rowconfigure(0, weight=1)
         self.main_frame.columnconfigure(0, weight=1)
 
-        self.chart_holder = tk.Frame(self.main_frame, bg='#111111')
+        self.chart_holder = tk.Frame(self.main_frame, bg=DARK_BG)
         self.chart_holder.grid(row=0, column=0, sticky="")
 
         self.canvas_inc = FigureCanvasTkAgg(self.fig_income, master=self.chart_holder)
@@ -252,15 +252,15 @@ class BudgetView:
         self.include_surplus_var = tk.BooleanVar(value=True)
 
         # Single horizontal control bar at the bottom to preserve 100% of vertical chart height
-        config_frame = tk.Frame(self.main_frame, bg='#111111')
+        config_frame = tk.Frame(self.main_frame, bg=DARK_BG)
         config_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=10)
 
         # 1. Left Controls: Account Numbers & Assigned Surplus Checkboxes
         surplus_chk = tk.Checkbutton(
             config_frame, text="Include Assigned Surplus",
             variable=self.include_surplus_var,
-            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
-            activebackground='#111111', activeforeground='white',
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=lambda: self.process_inputs(is_live=True)
         )
         surplus_chk.pack(side="left", padx=(0, 15))
@@ -268,15 +268,15 @@ class BudgetView:
         acct_chk = tk.Checkbutton(
             config_frame, text="Show Account Numbers",
             variable=self.show_acct_nums_var,
-            bg='#111111', fg='#aaaaaa', selectcolor='#1e1e1e',
-            activebackground='#111111', activeforeground='white',
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.process_inputs
         )
         acct_chk.pack(side="left", padx=(0, 12))
 
         # 2. Middle Control: Confidentiality Profile Dropdown
         self.view_profile_var = tk.StringVar(value="Bookkeeper Mode (Full Details)")
-        tk.Label(config_frame, text="View Profile:", bg='#111111', fg='#aaaaaa',
+        tk.Label(config_frame, text="View Profile:", bg=DARK_BG, fg=SOFT_GRAY,
                  font=('Arial', 9, 'bold')).pack(side="left", padx=(5, 5))
 
         from tkinter import ttk
@@ -290,21 +290,21 @@ class BudgetView:
 
         # 3. Right Control: Chart Visibility Radio Buttons (Both / Income / Expense)
         self.chart_view_mode_var = tk.StringVar(value="Both")
-        radio_frame = tk.Frame(config_frame, bg='#111111')
+        radio_frame = tk.Frame(config_frame, bg=DARK_BG)
         radio_frame.pack(side="right")
 
-        tk.Label(radio_frame, text="Charts:", bg='#111111', fg='#aaaaaa',
+        tk.Label(radio_frame, text="Charts:", bg=DARK_BG, fg=SOFT_GRAY,
                  font=('Arial', 9, 'bold')).pack(side="left", padx=(0, 5))
 
         for label_txt, mode_val, active_fg in [
             ("Both", "Both", "white"),
-            ("Income", "Income", "#00F0FF"),
-            ("Expense", "Expense", "#FF007F")
+            ("Income", "Income", NEON_CYAN),
+            ("Expense", "Expense", NEON_PINK)
         ]:
             rb = tk.Radiobutton(
                 radio_frame, text=label_txt, variable=self.chart_view_mode_var, value=mode_val,
-                bg='#111111', fg=active_fg, selectcolor='#1e1e1e',
-                activebackground='#111111', activeforeground=active_fg,
+                bg=DARK_BG, fg=active_fg, selectcolor=AXIS_GRAY,
+                activebackground=DARK_BG, activeforeground=active_fg,
                 font=('Arial', 9, 'bold'), cursor="hand2",
                 command=lambda: self.on_resize(forced=True)
             )
@@ -351,19 +351,19 @@ class BudgetView:
 
     def add_title_row(self, master, title_var, text_color):
         """Creates an editable title text box for budget headings."""
-        row = tk.Frame(master, bg='#1e1e1e')
+        row = tk.Frame(master, bg=AXIS_GRAY)
         row.pack(fill="x", pady=2, padx=5)
 
-        lbl = tk.Label(row, text="Title:", fg='#aaaaaa', bg='#1e1e1e', font=('Arial', 8))
+        lbl = tk.Label(row, text="Title:", fg=SOFT_GRAY, bg=AXIS_GRAY, font=('Arial', 8))
         lbl.pack(side="left", padx=2)
 
-        title_entry = tk.Entry(row, textvariable=title_var, bg='#2a2a2a', fg=text_color,
+        title_entry = tk.Entry(row, textvariable=title_var, bg=BUTTON_BG, fg=text_color,
                                insertbackground='white', font=('Arial', 9, 'italic'))
         title_entry.pack(side="left", fill="x", expand=True, padx=2)
         title_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: title_entry.focus_set()))
 
     def add_input_row(self, master, label_text, default_val, is_total=False):
-        row = tk.Frame(master, bg='#1e1e1e')
+        row = tk.Frame(master, bg=AXIS_GRAY)
         row.pack(fill="x", pady=4, padx=5)
 
         # A single-item list wrapper used to pass local variables across nested namespaces safely
@@ -371,14 +371,14 @@ class BudgetView:
 
         display_name = self.clean_label_text(label_text)
         lbl_var = tk.StringVar(value=display_name)
-        lbl_entry = tk.Entry(row, textvariable=lbl_var, bg='#2a2a2a', fg='white', insertbackground='white',
+        lbl_entry = tk.Entry(row, textvariable=lbl_var, bg=BUTTON_BG, fg='white', insertbackground='white',
                              font=('Arial', 9), width=1)
         lbl_entry.pack(side="left", fill="x", expand=True, padx=2)
 
         lbl_entry.raw_data_key = label_text.strip()
 
         if is_total:
-            lbl_entry.config(state="disabled", disabledbackground='#1e1e1e', disabledforeground='#00F0FF')
+            lbl_entry.config(state="disabled", disabledbackground=AXIS_GRAY, disabledforeground=NEON_CYAN)
 
         try:
             val_num = float(default_val)
@@ -387,7 +387,7 @@ class BudgetView:
             val_str = str(default_val)
 
         val_var = tk.StringVar(value=val_str)
-        val_entry = tk.Entry(row, textvariable=val_var, bg='#2a2a2a', fg='white', insertbackground='white',
+        val_entry = tk.Entry(row, textvariable=val_var, bg=BUTTON_BG, fg='white', insertbackground='white',
                              font=('Arial', 9, 'bold'), width=8, justify="right")
         val_entry.pack(side="right", padx=2, fill=None, expand=False)
 
@@ -396,8 +396,8 @@ class BudgetView:
         val_entry.bind("<Button-1>", lambda e: self.root.after(10, lambda: val_entry.focus_set()))
 
         # CONTEXT MENU OPERATIONS
-        context_menu = tk.Menu(self.root, tearoff=0, bg='#2a2a2a', fg='white',
-                               activebackground='#00F0FF', activeforeground='black', bd=1)
+        context_menu = tk.Menu(self.root, tearoff=0, bg=BUTTON_BG, fg='white',
+                               activebackground=NEON_CYAN, activeforeground='black', bd=1)
 
         def do_clear():
             if not is_total:
@@ -564,23 +564,23 @@ class BudgetView:
                     # Offer pin, full editing, and zoom mechanics for standard workflows
                     action_prompt = "[Left-Click to Pin | Double-Click to Edit | Right-Click to Zoom]"
 
-                border_color = '#00F0FF' if chart_type == "Income" else '#FF007F'
+                border_color = NEON_CYAN if chart_type == "Income" else NEON_PINK
 
                 self.tooltip = tk.Toplevel(self.root)
                 self.tooltip.wm_overrideredirect(True)
-                self.tooltip.configure(bg='#e0e0e0', highlightbackground=border_color, highlightcolor=border_color,
+                self.tooltip.configure(bg=SILVER_TEXT, highlightbackground=border_color, highlightcolor=border_color,
                                        highlightthickness=2, bd=0)
 
-                header_lbl = tk.Label(self.tooltip, text=f"--- {display_cat_name} Ledger ---", bg='#e0e0e0',
-                                      fg='#1a1a1a', font=('Arial', 10, 'bold'), padx=10)
+                header_lbl = tk.Label(self.tooltip, text=f"--- {display_cat_name} Ledger ---", bg=SILVER_TEXT,
+                                      fg=CHARCOAL_TEXT, font=('Arial', 10, 'bold'), padx=10)
                 header_lbl.pack(fill="x", pady=(8, 4))
 
-                body_lbl = tk.Label(self.tooltip, text=body_text, bg='#e0e0e0', fg='#1a1a1a',
+                body_lbl = tk.Label(self.tooltip, text=body_text, bg=SILVER_TEXT, fg=CHARCOAL_TEXT,
                                     font=('Consolas', 9, 'bold'), justify="left", padx=10)
                 body_lbl.pack(fill="x", pady=(0, 4))
 
-                self.tooltip_hint_lbl = tk.Label(self.tooltip, text=action_prompt, bg='#e0e0e0',
-                                                 fg='#444444', font=('Arial', 8, 'italic'), padx=10)
+                self.tooltip_hint_lbl = tk.Label(self.tooltip, text=action_prompt, bg=SILVER_TEXT,
+                                                 fg=AXIS_GRAY, font=('Arial', 8, 'italic'), padx=10)
                 self.tooltip_hint_lbl.pack(fill="x", pady=(0, 8))
 
                 # Allow dragging a pinned tooltip card to reposition it, or clicking to unpin
@@ -640,7 +640,7 @@ class BudgetView:
         elif self.tooltip:
             self.tooltip_frozen = True
             if self.tooltip_hint_lbl and self.tooltip_hint_lbl.winfo_exists():
-                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin]", fg='#006688')
+                self.tooltip_hint_lbl.config(text="[Pinned — Drag to Move | Click to Unpin]", fg=PINNED_TEAL)
 
     def handle_click(self, event, chart_type):
         """FEATURE IMPLEMENTATION: Intercepts single left-clicks to pin/unpin tooltips
@@ -707,7 +707,7 @@ class BudgetView:
 
         modal = tk.Toplevel(self.root)
         modal.title(f"Subcategory Ledger: {self.clean_label_text(category_name)}")
-        modal.configure(bg='#1e1e1e')
+        modal.configure(bg=AXIS_GRAY)
         modal.geometry("450x380")
         modal.transient(self.root)
         modal.grab_set()
@@ -721,11 +721,11 @@ class BudgetView:
         style.map("Treeview", background=[("selected", "background")])
 
         style.theme_use("clam")
-        style.configure("Treeview", background="#2a2a2a", fieldbackground="#2a2a2a", foreground="white",
+        style.configure("Treeview", background=BUTTON_BG, fieldbackground=BUTTON_BG, foreground="white",
                         font=('Arial', 9))
-        style.configure("Treeview.Heading", background="#111111", foreground="white", font=('Arial', 9, 'bold'))
+        style.configure("Treeview.Heading", background=DARK_BG, foreground="white", font=('Arial', 9, 'bold'))
 
-        tree_frame = tk.Frame(modal, bg='#1e1e1e')
+        tree_frame = tk.Frame(modal, bg=AXIS_GRAY)
         tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         tree = ttk.Treeview(tree_frame, columns=("Subcategory", "Value"), show="headings", height=8)
@@ -734,23 +734,23 @@ class BudgetView:
         tree.column("Subcategory", width=250, anchor="w")
         tree.column("Value", width=150, anchor="e")
 
-        tree.tag_configure("gray_lbl", foreground="#777777")
-        tree.tag_configure("red_lbl", foreground="#FF3300", background="#550011")
+        tree.tag_configure("gray_lbl", foreground=HINT_GRAY)
+        tree.tag_configure("red_lbl", foreground=NEON_RED, background=ALERT_CRIMSON_BG)
 
         scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        form_frame = tk.Frame(modal, bg='#1e1e1e')
+        form_frame = tk.Frame(modal, bg=AXIS_GRAY)
         form_frame.pack(fill="x", padx=10, pady=5)
 
         sub_var = tk.StringVar()
-        sub_ent = tk.Entry(form_frame, textvariable=sub_var, bg='#2a2a2a', fg='white', width=20)
+        sub_ent = tk.Entry(form_frame, textvariable=sub_var, bg=BUTTON_BG, fg='white', width=20)
         sub_ent.pack(side="left", padx=2)
 
         val_var = tk.StringVar()
-        val_ent = tk.Entry(form_frame, textvariable=val_var, bg='#2a2a2a', fg='white', width=8, justify="right")
+        val_ent = tk.Entry(form_frame, textvariable=val_var, bg=BUTTON_BG, fg='white', width=8, justify="right")
         val_ent.pack(side="left", padx=2)
 
         editing_index = None
@@ -852,11 +852,11 @@ class BudgetView:
         tree.bind("<<TreeviewSelect>>", handle_selection_change)
 
         add_btn = tk.Button(form_frame, text="+ Add Item", command=add_or_update_ledger_item,
-                            bg='#00F0FF', fg='black', font=('Arial', 9, 'bold'))
+                            bg=NEON_CYAN, fg='black', font=('Arial', 9, 'bold'))
         add_btn.pack(side="left", padx=5)
 
         remove_btn = tk.Button(form_frame, text="- Remove Item", command=remove_ledger_item,
-                               bg='#FF3300', fg='white', font=('Arial', 9, 'bold'), state="disabled")
+                               bg=NEON_RED, fg='white', font=('Arial', 9, 'bold'), state="disabled")
         remove_btn.pack(side="left", padx=5)
 
         refresh_tree_view()
@@ -893,7 +893,7 @@ class BudgetView:
                 cleaned_subs.append((c_lbl, sub_val))
                 if show_breakdown_rows: max_lbl_len = max(max_lbl_len, len(c_lbl))
 
-        border_color = '#00F0FF' if chart_type == "Income" else '#FF007F'
+        border_color = NEON_CYAN if chart_type == "Income" else NEON_PINK
         self.trigger_sanctuary_zoom(display_cat_name, border_color, max_lbl_len, show_breakdown_rows, cleaned_subs,
                                     remainder, expected_total)
 
@@ -913,7 +913,7 @@ class BudgetView:
             self.zoom_font_size = 14
 
         self.zoom_modal = tk.Toplevel(self.root)
-        self.zoom_modal.configure(bg='#161616', highlightbackground=border_color, highlightcolor=border_color, highlightthickness=2, bd=0)
+        self.zoom_modal.configure(bg=ZOOM_BG, highlightbackground=border_color, highlightcolor=border_color, highlightthickness=2, bd=0)
         self.zoom_modal.wm_overrideredirect(True)
 
         # VERTICALLY ALIGNED DOT-LEADER GRID
@@ -941,8 +941,8 @@ class BudgetView:
         zoom_body_text += format_zoom_row(z_lbl_str, z_rem_str)
 
         # BUILD HEADER, FOOTER + HINT FIRST, THEN ADAPTIVE VIEWPORT
-        tk.Frame(self.zoom_modal, bg='#161616', height=20).pack(side="top")
-        title_lbl = tk.Label(self.zoom_modal, text=f" {display_cat_name.upper()} LEDGER ", bg='#161616', fg='white', font=('Arial', 16, 'bold'))
+        tk.Frame(self.zoom_modal, bg=ZOOM_BG, height=20).pack(side="top")
+        title_lbl = tk.Label(self.zoom_modal, text=f" {display_cat_name.upper()} LEDGER ", bg=ZOOM_BG, fg='white', font=('Arial', 16, 'bold'))
         title_lbl.pack(side="top", fill="x", padx=30, pady=4)
         tk.Frame(self.zoom_modal, height=2, bg=border_color).pack(side="top", fill="x", padx=35, pady=(2, 10))
 
@@ -956,10 +956,10 @@ class BudgetView:
         manual_sized = {"active": False}
 
         # Pack footer container at bottom so both the hint and close button always stay visible
-        footer_frame = tk.Frame(self.zoom_modal, bg='#161616')
+        footer_frame = tk.Frame(self.zoom_modal, bg=ZOOM_BG)
         footer_frame.pack(side="bottom", fill="x", pady=(6, 10))
 
-        grip = tk.Label(footer_frame, text="◢", bg='#161616', fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
+        grip = tk.Label(footer_frame, text="◢", bg=ZOOM_BG, fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
         grip.pack(side="right", anchor="se", padx=(0, 6))
 
         drag_resize = {"x": 0, "y": 0, "w": 0, "h": 0}
@@ -984,28 +984,28 @@ class BudgetView:
         hint_lbl = tk.Label(
             footer_frame,
             text="Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner (Double-Click Reset)  |  ESC to Close",
-            bg='#161616', fg='#777777', font=('Arial', 9, 'italic')
+            bg=ZOOM_BG, fg=HINT_GRAY, font=('Arial', 9, 'italic')
         )
         hint_lbl.pack(side="top", pady=(0, 6))
 
         btn_close = tk.Button(footer_frame, text="[ Close Ledger View ]", command=close_modal,
-                              bg='#161616', fg='#aaaaaa', activebackground='#161616', activeforeground='white',
+                              bg=ZOOM_BG, fg=SOFT_GRAY, activebackground=ZOOM_BG, activeforeground='white',
                               font=('Arial', 12, 'bold'), bd=0, highlightthickness=0, cursor="hand2")
         btn_close.pack(side="top")
-        viewport_frame = tk.Frame(self.zoom_modal, bg='#161616')
+        viewport_frame = tk.Frame(self.zoom_modal, bg=ZOOM_BG)
         viewport_frame.pack(side="top", fill="both", expand=True, padx=25, pady=5)
 
-        zoom_canvas = tk.Canvas(viewport_frame, bg='#161616', bd=0, highlightthickness=0, yscrollincrement=10, xscrollincrement=10)
+        zoom_canvas = tk.Canvas(viewport_frame, bg=ZOOM_BG, bd=0, highlightthickness=0, yscrollincrement=10, xscrollincrement=10)
         h_scrollbar = tk.Scrollbar(viewport_frame, orient="horizontal", command=zoom_canvas.xview)
         v_scrollbar = tk.Scrollbar(viewport_frame, orient="vertical", command=zoom_canvas.yview)
         zoom_canvas.configure(xscrollcommand=h_scrollbar.set, yscrollcommand=v_scrollbar.set)
 
         # Main inner container holding text blocks securely inside the viewport canvas
-        inner_content_frame = tk.Frame(zoom_canvas, bg='#161616')
+        inner_content_frame = tk.Frame(zoom_canvas, bg=ZOOM_BG)
         canvas_win_id = zoom_canvas.create_window((0, 0), window=inner_content_frame, anchor="nw")
 
         # High-Contrast Ledger Body Label (Consolas Bold 14pt)
-        m_body = tk.Label(inner_content_frame, text=zoom_body_text, bg='#161616', fg='#e0e0e0',
+        m_body = tk.Label(inner_content_frame, text=zoom_body_text, bg=ZOOM_BG, fg=SILVER_TEXT,
                           font=('Consolas', self.zoom_font_size, 'bold'), justify="left")
         m_body.pack(padx=10, pady=10)
 
@@ -1194,10 +1194,10 @@ class BudgetView:
 
             # Re-attach operational addition buttons right beneath sorted data list elements
             tk.Button(self.inc_frame, text="+ Add Income Item", command=lambda: self.add_blank_row("Income"),
-                      bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
+                      bg=DARK_BG, fg=NEON_CYAN, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
 
             tk.Button(self.exp_frame, text="+ Add Expense Item", command=lambda: self.add_blank_row("Expense"),
-                      bg='#111111', fg='#FF007F', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
+                      bg=DARK_BG, fg=NEON_PINK, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7, pady=5)
 
             self.income_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
             self.expense_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
@@ -1221,7 +1221,7 @@ class BudgetView:
         self.income_inputs.append(self.add_input_row(self.inc_frame, "PY Surplus Applied", 24400))
 
         tk.Button(self.inc_frame, text="+ Add Income Item", command=lambda: self.add_blank_row("Income"),
-                  bg='#111111', fg='#00F0FF', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
+                  bg=DARK_BG, fg=NEON_CYAN, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
                                                                                                     pady=5)
 
         # Populate Expense allocation entry rows
@@ -1231,7 +1231,7 @@ class BudgetView:
         total_row_frame = self.exp_frame.pack_slaves()[-1]
         for child in total_row_frame.winfo_children():
             if isinstance(child, tk.Entry):
-                child.config(disabledforeground='#FF007F', fg='#FF007F')
+                child.config(disabledforeground=NEON_PINK, fg=NEON_PINK)
 
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Clergy", 211400))
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Lay Ministry", 109400))
@@ -1241,7 +1241,7 @@ class BudgetView:
         self.expense_inputs.append(self.add_input_row(self.exp_frame, "Faith Form.", 5000))
 
         tk.Button(self.exp_frame, text="+ Add Expense Item", command=lambda: self.add_blank_row("Expense"),
-                  bg='#111111', fg='#FF007F', font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
+                  bg=DARK_BG, fg=NEON_PINK, font=('Arial', 8, 'bold'), bd=0, cursor="hand2").pack(anchor="w", padx=7,
                                                                                                     pady=5)
 
         # Attach real-time modification listener traces and force rendering update pass
@@ -1290,7 +1290,7 @@ class BudgetView:
                 if isinstance(row_frame, tk.Frame):
                     entries = [c for c in row_frame.winfo_children() if isinstance(c, tk.Entry)]
                     if len(entries) >= 2 and "SURPLUS" in entries[0].get().upper():
-                        fg_col = 'white' if use_surplus else '#666666'
+                        fg_col = 'white' if use_surplus else DIVIDER_GRAY
                         entries[0].config(fg=fg_col, font=('Arial', 9, 'normal' if use_surplus else 'overstrike'))
                         entries[1].config(fg=fg_col, font=('Arial', 9, 'bold' if use_surplus else 'bold overstrike'))
 
@@ -1313,9 +1313,9 @@ class BudgetView:
             self.income_sizes = [x[1] for x in inc_candidates]
 
             if other_inc < 0:
-                self.inc_other_lbl.config(text=f"Other Balance: {int(other_inc)}", fg='#FF3300')
+                self.inc_other_lbl.config(text=f"Other Balance: {int(other_inc)}", fg=NEON_RED)
             else:
-                self.inc_other_lbl.config(text=f"Other Balance: {int(other_inc)}", fg='#777777')
+                self.inc_other_lbl.config(text=f"Other Balance: {int(other_inc)}", fg=HINT_GRAY)
 
             if other_inc != 0 or len(inc_candidates) > 0:
                 if other_inc >= 1.0:
@@ -1344,9 +1344,9 @@ class BudgetView:
             self.expense_sizes = [x[1] for x in exp_candidates]
 
             if other_exp < 0:
-                self.exp_other_lbl.config(text=f"Other Balance: {int(other_exp)}", fg='#FF3300')
+                self.exp_other_lbl.config(text=f"Other Balance: {int(other_exp)}", fg=NEON_RED)
             else:
-                self.exp_other_lbl.config(text=f"Other Balance: {int(other_exp)}", fg='#777777')
+                self.exp_other_lbl.config(text=f"Other Balance: {int(other_exp)}", fg=HINT_GRAY)
 
             if other_exp != 0 or len(exp_candidates) > 0:
                 if other_exp >= 1.0:
@@ -1363,9 +1363,9 @@ class BudgetView:
                 try:
                     net_position_val = self.total_income - self.total_expenses
                     if net_position_val >= 0:
-                        self.net_summary_lbl.config(text=f"Net Surplus: +${int(net_position_val):,}", fg='#00F0FF')
+                        self.net_summary_lbl.config(text=f"Net Surplus: +${int(net_position_val):,}", fg=NEON_CYAN)
                     else:
-                        self.net_summary_lbl.config(text=f"Net Deficit: -${int(abs(net_position_val)):,}", fg='#FF007F')
+                        self.net_summary_lbl.config(text=f"Net Deficit: -${int(abs(net_position_val)):,}", fg=NEON_PINK)
                 except (ValueError, TypeError, AttributeError):
                     pass
 
@@ -1434,14 +1434,14 @@ class BudgetView:
             self.fig_income.set_size_inches(size_inches_w, size_inches_h)
             self.income_wedges, inc_ylim = create_smart_pie(
                 self.fig_income, self.income_sizes, self.income_labels, self.total_income,
-                self.income_title_var.get(), '#00F0FF', font_sz, thresh
+                self.income_title_var.get(), NEON_CYAN, font_sz, thresh
             )
 
         if view_mode in ("Both", "Expense"):
             self.fig_expense.set_size_inches(size_inches_w, size_inches_h)
             self.expense_wedges, exp_ylim = create_smart_pie(
                 self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
-                self.expense_title_var.get(), '#FF007F', font_sz, thresh
+                self.expense_title_var.get(), NEON_PINK, font_sz, thresh
             )
 
         # When both pies are shown side-by-side, lock them to the lower of the two dynamic Y-limits
@@ -1464,14 +1464,14 @@ class BudgetView:
     def save_charts(self):
         dlg = tk.Toplevel(self.root)
         dlg.title("Export Chart Background")
-        dlg.configure(bg='#1c1c1c', highlightbackground='#00FF66', highlightthickness=1)
+        dlg.configure(bg=MODAL_BG, highlightbackground=NEON_GREEN, highlightthickness=1)
         mx = self.root.winfo_x() + (self.root.winfo_width() // 2) - 180
         my = self.root.winfo_y() + (self.root.winfo_height() // 2) - 105
         dlg.geometry(f"360x210+{mx}+{my}")
         dlg.transient(self.root)
         dlg.grab_set()
 
-        tk.Label(dlg, text="CHOOSE EXPORT BACKGROUND STYLE", bg='#1c1c1c', fg='#00FF66',
+        tk.Label(dlg, text="CHOOSE EXPORT BACKGROUND STYLE", bg=MODAL_BG, fg=NEON_GREEN,
                  font=('Arial', 10, 'bold')).pack(pady=(15, 6))
 
         chosen = {"theme": None}
@@ -1481,9 +1481,9 @@ class BudgetView:
             dlg.destroy()
 
         options = [
-            ("Dark Theme (Black)", "dark", "#111111", "#00F0FF"),
-            ("White Background (Newsletter / Print)", "white", "#FFFFFF", "#1a1a1a"),
-            ("Transparent Background", "transparent", "#2a2a2a", "white")
+            ("Dark Theme (Black)", "dark", DARK_BG, NEON_CYAN),
+            ("White Background (Newsletter / Print)", "white", PURE_WHITE, CHARCOAL_TEXT),
+            ("Transparent Background", "transparent", BUTTON_BG, "white")
         ]
         for lbl, val, bg, fg in options:
             tk.Button(dlg, text=lbl, command=lambda v=val: pick(v), bg=bg, fg=fg,
@@ -1501,9 +1501,9 @@ class BudgetView:
             inc_path = os.path.join(desktop_dir, "income_budget.png")
             exp_path = os.path.join(desktop_dir, "expenses_budget.png")
             _, inc_ylim = create_smart_pie(self.fig_income, self.income_sizes, self.income_labels, self.total_income,
-                                           self.income_title_var.get(), '#00F0FF', 9.5, 0.16, theme=theme_choice)
+                                           self.income_title_var.get(), NEON_CYAN, 9.5, 0.16, theme=theme_choice)
             _, exp_ylim = create_smart_pie(self.fig_expense, self.expense_sizes, self.expense_labels, self.total_expenses,
-                                           self.expense_title_var.get(), '#FF007F', 9.5, 0.16, theme=theme_choice)
+                                           self.expense_title_var.get(), NEON_PINK, 9.5, 0.16, theme=theme_choice)
 
             shared_bottom = min(inc_ylim, exp_ylim)
             if self.fig_income.axes:

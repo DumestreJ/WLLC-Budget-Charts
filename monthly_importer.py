@@ -30,7 +30,7 @@ def import_financial_spreadsheet(monthly_view):
 
     dlg = tk.Toplevel(monthly_view.app.root)
     dlg.title("Import Financial Statements")
-    dlg.configure(bg='#1c1c1c', highlightbackground='#00F0FF', highlightthickness=1)
+    dlg.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
     dlg.geometry("500x305")
     dlg.transient(monthly_view.app.root)
     dlg.grab_set()
@@ -39,19 +39,19 @@ def import_financial_spreadsheet(monthly_view):
     my = monthly_view.app.root.winfo_y() + (monthly_view.app.root.winfo_height() // 2) - 152
     dlg.geometry(f"+{max(20, mx)}+{max(20, my)}")
 
-    tk.Label(dlg, text="IMPORT FINANCIAL STATEMENTS", bg='#1c1c1c', fg='#00F0FF',
+    tk.Label(dlg, text="IMPORT FINANCIAL STATEMENTS", bg=MODAL_BG, fg=NEON_CYAN,
              font=('Arial', 10, 'bold')).pack(pady=(14, 10))
 
     # 1. Excel File Browser Row
-    frm_file = tk.Frame(dlg, bg='#1c1c1c')
+    frm_file = tk.Frame(dlg, bg=MODAL_BG)
     frm_file.pack(fill="x", padx=25, pady=6)
-    tk.Label(frm_file, text="Excel File:", bg='#1c1c1c', fg='white',
+    tk.Label(frm_file, text="Excel File:", bg=MODAL_BG, fg='white',
              font=('Arial', 9, 'bold'), width=18, anchor="w").pack(side="left")
 
     file_display_var = tk.StringVar(value="No file selected")
-    lbl_file = tk.Label(frm_file, textvariable=file_display_var, bg='#141414', fg='#aaaaaa',
+    lbl_file = tk.Label(frm_file, textvariable=file_display_var, bg=RECESSED_BG, fg=SOFT_GRAY,
                         font=('Arial', 8), anchor="w", padx=8, pady=4,
-                        highlightbackground='#333333', highlightthickness=1)
+                        highlightbackground=BORDER_GRAY, highlightthickness=1)
     lbl_file.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
     wb = None
@@ -78,7 +78,7 @@ def import_financial_spreadsheet(monthly_view):
                 return
             wb = loaded_wb
             file_display_var.set(os.path.basename(picked_path))
-            lbl_file.config(fg='#00F0FF')
+            lbl_file.config(fg=NEON_CYAN)
 
             def_act = s_names
             def_bud = "None (Use Budget Tab Average)"
@@ -98,20 +98,20 @@ def import_financial_spreadsheet(monthly_view):
             messagebox.showerror("Import Error", f"Could not open Excel workbook:\n{str(err)}", parent=dlg)
 
     tk.Button(frm_file, text="Browse...", command=browse_excel_file,
-              bg='#2a2a2a', fg='#00F0FF', font=('Arial', 8, 'bold'),
+              bg=BUTTON_BG, fg=NEON_CYAN, font=('Arial', 8, 'bold'),
               padx=10, pady=4, bd=1, relief="solid", cursor="hand2").pack(side="right")
     # 2. Actuals & Forecast Budget Tab Selectors
-    frm1 = tk.Frame(dlg, bg='#1c1c1c')
+    frm1 = tk.Frame(dlg, bg=MODAL_BG)
     frm1.pack(fill="x", padx=25, pady=6)
-    tk.Label(frm1, text="Actuals Tab:", bg='#1c1c1c', fg='white',
+    tk.Label(frm1, text="Actuals Tab:", bg=MODAL_BG, fg='white',
              font=('Arial', 9, 'bold'), width=18, anchor="w").pack(side="left")
     cb_actual = ttk.Combobox(frm1, textvariable=actual_var, values=["Select file first..."],
                              state="disabled", width=28)
     cb_actual.pack(side="right", fill="x", expand=True)
 
-    frm2 = tk.Frame(dlg, bg='#1c1c1c')
+    frm2 = tk.Frame(dlg, bg=MODAL_BG)
     frm2.pack(fill="x", padx=25, pady=6)
-    tk.Label(frm2, text="Forecast Budget Tab:", bg='#1c1c1c', fg='white',
+    tk.Label(frm2, text="Forecast Budget Tab:", bg=MODAL_BG, fg='white',
              font=('Arial', 9, 'bold'), width=18, anchor="w").pack(side="left")
     cb_budget = ttk.Combobox(frm2, textvariable=budget_var, values=["None (Use Budget Tab Average)"],
                              state="disabled", width=28)
@@ -146,15 +146,15 @@ def import_financial_spreadsheet(monthly_view):
         "   • Select a monthly Budget / 'Budget vs. Actuals' tab to pull month-by-month budgeted figures, OR choose 'None (Use Budget Tab Average)' to spread your active Budget page totals evenly by 12."
     )
 
-    btn_row = tk.Frame(dlg, bg='#1c1c1c')
+    btn_row = tk.Frame(dlg, bg=MODAL_BG)
     btn_row.pack(side="bottom", pady=18)
     tk.Button(btn_row, text="? Info",
               command=lambda: show_import_help(dlg, "Monthly Financials Import Guide", FINANCIAL_HELP_TEXT),
-              bg='#2a2a2a', fg='#00F0FF', font=('Arial', 9, 'bold'),
+              bg=BUTTON_BG, fg=NEON_CYAN, font=('Arial', 9, 'bold'),
               padx=12, pady=5, bd=1, relief="solid", cursor="hand2").pack(side="left", padx=(0, 10))
-    tk.Button(btn_row, text="Cancel", command=on_cancel, bg='#2a2a2a', fg='white',
+    tk.Button(btn_row, text="Cancel", command=on_cancel, bg=BUTTON_BG, fg='white',
               font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=8)
-    tk.Button(btn_row, text="Import Selected Tabs", command=on_confirm, bg='#00F0FF', fg='black',
+    tk.Button(btn_row, text="Import Selected Tabs", command=on_confirm, bg=NEON_CYAN, fg='black',
               font=('Arial', 9, 'bold'), padx=14, pady=5, bd=0, cursor="hand2").pack(side="left", padx=8)
 
     dlg.bind("<Escape>", lambda e: on_cancel())
