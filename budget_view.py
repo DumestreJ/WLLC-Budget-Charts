@@ -953,22 +953,45 @@ class BudgetView:
                 self.zoom_modal = None
             self.modal_active = False
 
+        manual_sized = {"active": False}
+
         # Pack footer container at bottom so both the hint and close button always stay visible
         footer_frame = tk.Frame(self.zoom_modal, bg='#161616')
-        footer_frame.pack(side="bottom", fill="x", pady=(6, 16))
+        footer_frame.pack(side="bottom", fill="x", pady=(6, 10))
+
+        grip = tk.Label(footer_frame, text="◢", bg='#161616', fg=border_color, font=('Arial', 10, 'bold'), cursor="size_nw_se")
+        grip.pack(side="right", anchor="se", padx=(0, 6))
+
+        drag_resize = {"x": 0, "y": 0, "w": 0, "h": 0}
+        def on_grip_press(e):
+            drag_resize["x"], drag_resize["y"] = e.x_root, e.y_root
+            drag_resize["w"], drag_resize["h"] = self.zoom_modal.winfo_width(), self.zoom_modal.winfo_height()
+
+        def on_grip_drag(e):
+            manual_sized["active"] = True
+            aw, ah = self.root.winfo_width(), self.root.winfo_height()
+            cx = self.root.winfo_rootx() + (aw // 2)
+            cy = self.root.winfo_rooty() + (ah // 2)
+            nw = min(max(340, drag_resize["w"] + (e.x_root - drag_resize["x"]) * 2), max(360, aw - 20))
+            nh = min(max(220, drag_resize["h"] + (e.y_root - drag_resize["y"]) * 2), max(240, ah - 20))
+            self.zoom_modal.geometry(f"{nw}x{nh}+{cx - (nw // 2)}+{cy - (nh // 2)}")
+            configure_adaptive_viewports()
+
+        grip.bind("<ButtonPress-1>", on_grip_press)
+        grip.bind("<B1-Motion>", on_grip_drag)
+        grip.bind("<Double-Button-1>", lambda e: (manual_sized.update(active=False), resize_and_center_modal()))
 
         hint_lbl = tk.Label(
             footer_frame,
-            text="Scroll Mouse Wheel or Press ↑ / ↓ Arrows to Resize Text  |  ESC to Close",
+            text="Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner (Double-Click Reset)  |  ESC to Close",
             bg='#161616', fg='#777777', font=('Arial', 9, 'italic')
         )
-        hint_lbl.pack(side="top", pady=(0, 8))
+        hint_lbl.pack(side="top", pady=(0, 6))
 
         btn_close = tk.Button(footer_frame, text="[ Close Ledger View ]", command=close_modal,
                               bg='#161616', fg='#aaaaaa', activebackground='#161616', activeforeground='white',
                               font=('Arial', 12, 'bold'), bd=0, highlightthickness=0, cursor="hand2")
         btn_close.pack(side="top")
-
         viewport_frame = tk.Frame(self.zoom_modal, bg='#161616')
         viewport_frame.pack(side="top", fill="both", expand=True, padx=25, pady=5)
 
@@ -1025,6 +1048,10 @@ class BudgetView:
 
         def resize_and_center_modal():
             """Recalculates exact modal dimensions for the current font size and centers on screen."""
+            if manual_sized["active"]:
+                self.zoom_modal.update_idletasks()
+                configure_adaptive_viewports()
+                return
             self.zoom_modal.update_idletasks()
             inner_content_frame.update_idletasks()
 
@@ -1079,13 +1106,25 @@ class BudgetView:
         self.zoom_modal.bind("<Button-5>", handle_modal_wheel)
         self.zoom_modal.bind("<Up>", lambda e: adjust_zoom_font(1))
         self.zoom_modal.bind("<Down>", lambda e: adjust_zoom_font(-1))
+        self.zoom_modal.bind("<Escape>", close_modal)
 
         # Initial sizing & focus lock
         resize_and_center_modal()
+
+        def on_outside_click(event):
+            if not self.zoom_modal or not self.zoom_modal.winfo_exists():
+                return
+            mx, my = self.zoom_modal.winfo_rootx(), self.zoom_modal.winfo_rooty()
+            mw, mh = self.zoom_modal.winfo_width(), self.zoom_modal.winfo_height()
+            if not (mx <= event.x_root <= mx + mw and my <= event.y_root <= my + mh):
+                close_modal()
+
+        self.zoom_modal.bind("<Button-1>", on_outside_click)
         self.zoom_modal.transient(self.root)
+        self.zoom_modal.attributes('-topmost', True)
+        self.zoom_modal.lift()
         self.zoom_modal.grab_set()
         self.zoom_modal.focus_force()
-        self.zoom_modal.bind("<Escape>", close_modal)
 
     def load_initial_data(self):
         """Loads budget dataset configurations from the Current Working Directory (CWD),
