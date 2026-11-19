@@ -350,10 +350,29 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(inc_arr[sb:] >= exp_arr[sb:]), interpolate=True, color=inc_color, alpha=0.07, zorder=2)
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(exp_arr[sb:] > inc_arr[sb:]), interpolate=True, color=exp_color, alpha=0.07, zorder=2)
     if 0 < first_fc_idx < len(months):
-        ax_top.axvline(x=first_fc_idx - 0.5, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
-        ax_bot.axvline(x=first_fc_idx - 0.5, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
-        y_top = max(all_top_vals)
-        ax_top.text(first_fc_idx - 0.42, y_top, "Forecast →", color=MUTED_GRAY, fontsize=8, fontweight='bold', va='top')
+        div_x = first_fc_idx - 0.5
+        ax_top.axvline(x=div_x, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
+        ax_bot.axvline(x=div_x, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
+
+        y_min, y_max = ax_top.get_ylim()
+        y_span = max(y_max - y_min, 1.0)
+        near_idxs = [i for i in (first_fc_idx - 1, first_fc_idx) if 0 <= i < len(months)]
+        local_vals = [v for i in near_idxs for v in (inc_arr[i], exp_arr[i])]
+        if custom_series:
+            local_vals.extend(s["values"][i] for s in custom_series for i in near_idxs if i < len(s["values"]))
+
+        top_gap = y_max - max(local_vals) if local_vals else y_span
+        bot_gap = min(local_vals) - y_min if local_vals else 0.0
+
+        if bot_gap > top_gap:
+            lbl_y, lbl_va = y_min + 0.03 * y_span, 'bottom'
+        else:
+            lbl_y, lbl_va = y_max - 0.03 * y_span, 'top'
+
+        if first_fc_idx >= len(months) - 1:
+            ax_top.text(div_x - 0.12, lbl_y, "Forecast →", color=MUTED_GRAY, fontsize=8, fontweight='bold', ha='right', va=lbl_va)
+        else:
+            ax_top.text(div_x + 0.12, lbl_y, "Forecast →", color=MUTED_GRAY, fontsize=8, fontweight='bold', ha='left', va=lbl_va)
 
     ax_top.set_title(f"{title_text} ({mode_tag} • {surplus_tag})", color=fg_color, fontsize=13.5, fontweight='bold', pad=12)
     ax_top.tick_params(axis='x', labelbottom=False, colors=fg_color)
