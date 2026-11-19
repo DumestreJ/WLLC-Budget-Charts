@@ -31,11 +31,11 @@ def import_financial_spreadsheet(monthly_view):
     dlg = tk.Toplevel(monthly_view.app.root)
     dlg.title("Import Financial Statements")
     dlg.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
-    dlg.geometry("500x305")
+    dlg.geometry("580x305")
     dlg.transient(monthly_view.app.root)
     dlg.grab_set()
 
-    mx = monthly_view.app.root.winfo_x() + (monthly_view.app.root.winfo_width() // 2) - 250
+    mx = monthly_view.app.root.winfo_x() + (monthly_view.app.root.winfo_width() // 2) - 290
     my = monthly_view.app.root.winfo_y() + (monthly_view.app.root.winfo_height() // 2) - 152
     dlg.geometry(f"+{max(20, mx)}+{max(20, my)}")
 
@@ -71,7 +71,11 @@ def import_financial_spreadsheet(monthly_view):
             return
         monthly_view.app.last_import_dir = os.path.dirname(picked_path)
         try:
-            loaded_wb = openpyxl.load_workbook(picked_path, data_only=True)
+            loaded_wb = run_with_busy_banner(
+                dlg,
+                f"Reading '{os.path.basename(picked_path)}'...\nPlease wait",
+                lambda: openpyxl.load_workbook(picked_path, data_only=True)
+            )
             s_names = loaded_wb.sheetnames
             if not s_names:
                 messagebox.showerror("Import Error", "No sheets found in the selected workbook.", parent=dlg)
@@ -80,7 +84,7 @@ def import_financial_spreadsheet(monthly_view):
             file_display_var.set(os.path.basename(picked_path))
             lbl_file.config(fg=NEON_CYAN)
 
-            def_act = s_names
+            def_act = s_names[0]
             def_bud = "None (Use Budget Tab Average)"
             for name in s_names:
                 low = name.lower()

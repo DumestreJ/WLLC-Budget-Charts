@@ -515,3 +515,29 @@ def show_import_help(parent, title, guide_text):
     help_win.bind("<Button-4>", on_wheel)
     help_win.bind("<Button-5>", on_wheel)
     help_win.bind("<Escape>", lambda e: close_help())
+
+def run_with_busy_banner(parent, message, task_fn):
+    """Displays a centered dark neon status banner and watch cursor while running a blocking file task."""
+    parent.config(cursor="watch")
+    overlay = tk.Frame(parent, bg=ZOOM_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
+    tk.Label(
+        overlay, text=message, bg=ZOOM_BG, fg=NEON_CYAN,
+        font=('Arial', 11, 'bold'), padx=30, pady=18
+    ).pack()
+    overlay.place(relx=0.5, rely=0.5, anchor="center")
+    overlay.lift()
+    parent.update_idletasks()
+
+    req_w = overlay.winfo_reqwidth() + 50
+    cur_w = parent.winfo_width()
+    if req_w > cur_w:
+        cur_h = parent.winfo_height()
+        new_x = max(10, parent.winfo_x() - (req_w - cur_w) // 2)
+        parent.geometry(f"{req_w}x{cur_h}+{new_x}+{parent.winfo_y()}")
+
+    parent.update()
+    try:
+        return task_fn()
+    finally:
+        overlay.destroy()
+        parent.config(cursor="")

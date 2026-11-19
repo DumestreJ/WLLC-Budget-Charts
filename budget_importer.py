@@ -136,11 +136,11 @@ def import_excel_budget(app):
         selector = tk.Toplevel(app.root)
         selector.title("Import Spreadsheet Budget")
         selector.configure(bg=MODAL_BG, highlightbackground=NEON_CYAN, highlightthickness=1)
-        selector.geometry("510x375")
+        selector.geometry("580x375")
         selector.transient(app.root)
         selector.grab_set()
 
-        mx = app.root.winfo_x() + (app.root.winfo_width() // 2) - 255
+        mx = app.root.winfo_x() + (app.root.winfo_width() // 2) - 290
         my = app.root.winfo_y() + (app.root.winfo_height() // 2) - 187
         selector.geometry(f"+{max(20, mx)}+{max(20, my)}")
 
@@ -198,7 +198,11 @@ def import_excel_budget(app):
                 return
             app.last_import_dir = os.path.dirname(picked_path)
             try:
-                wb = load_workbook(picked_path, data_only=True)
+                wb = run_with_busy_banner(
+                    selector,
+                    f"Reading '{os.path.basename(picked_path)}'...\nPlease wait",
+                    lambda: load_workbook(picked_path, data_only=True)
+                )
                 file_display_var.set(os.path.basename(picked_path))
                 lbl_file.config(fg=NEON_CYAN)
                 tab_choices = ["Select tab"] + list(wb.sheetnames)
