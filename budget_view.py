@@ -205,7 +205,7 @@ class BudgetView:
         bot_sep.pack(fill="x", side="bottom", pady=(4, 0))
 
         # ---------------------------------------------------------------------
-        # ZONE 3: THE ORIGINAL 4 VERTICALLY STACKED SOLID NEON ACTION BUTTONS
+        # ZONE 3: THE ORIGINAL 3 VERTICALLY STACKED SOLID NEON ACTION BUTTONS
         # ---------------------------------------------------------------------
         actions_frame = tk.Frame(self.left_panel, bg=DARK_BG)
         actions_frame.pack(side="bottom", fill="x", padx=15, pady=(5, 15))
@@ -215,11 +215,6 @@ class BudgetView:
                                bg=NEON_MAGENTA, fg='black', activebackground=HOVER_MAGENTA, activeforeground='black',
                                font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
         btn_import.pack(fill="x", pady=4)
-
-        btn_update = tk.Button(actions_frame, text="Update Charts", command=self.process_inputs,
-                               bg=NEON_CYAN, fg='black', activebackground=HOVER_CYAN, activeforeground='black',
-                               font=('Arial', 9, 'bold'), bd=0, highlightthickness=0, height=2, cursor="hand2")
-        btn_update.pack(fill="x", pady=4)
 
         self.btn_save = tk.Button(actions_frame, text="Create CSV File", command=self.save_to_csv,
                                   bg=NEON_GOLD, fg='black', activebackground=HOVER_GOLD, activeforeground='black',
@@ -1048,11 +1043,10 @@ class BudgetView:
 
         grip.bind("<ButtonPress-1>", on_grip_press)
         grip.bind("<B1-Motion>", on_grip_drag)
-        grip.bind("<Double-Button-1>", lambda e: (manual_sized.update(active=False), resize_and_center_modal()))
 
         hint_lbl = tk.Label(
             footer_frame,
-            text="Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner (Double-Click Reset)  |  ESC to Close",
+            text="Wheel or ↑/↓ Resize Text  |  Drag ◢ Corner  |  ESC to Close",
             bg=ZOOM_BG, fg=HINT_GRAY, font=('Arial', 9, 'italic')
         )
         hint_lbl.pack(side="top", pady=(0, 6))

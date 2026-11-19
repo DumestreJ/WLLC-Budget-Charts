@@ -244,6 +244,7 @@ class MonthlyFinancialsView:
                 self.seed_from_active_budget()
                 if hasattr(self, 'data_source_var'):
                     self.data_source_var.set("Source: Budget Forecast")
+
                 self.rebuild_left_table()
             self.redraw_chart()
             return True
@@ -278,6 +279,8 @@ class MonthlyFinancialsView:
 
         if hasattr(self, 'data_source_var'):
             self.data_source_var.set("Source: CSV" if loaded_from_csv else "Source: Budget Forecast")
+        if hasattr(self, 'btn_save_csv'):
+            self.btn_save_csv.config(text="Update CSV File" if loaded_from_csv else "Create CSV File")
 
         self.rebuild_left_table()
         self.redraw_chart()
@@ -547,10 +550,6 @@ class MonthlyFinancialsView:
         tk.Button(actions_frame, text="Import Financial Spreadsheet",
                   command=lambda: import_financial_spreadsheet(self),
                   bg=NEON_MAGENTA, fg='black', activebackground=HOVER_MAGENTA, activeforeground='black',
-                  font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
-
-        tk.Button(actions_frame, text="Update Chart", command=lambda: self.redraw_chart(force=True),
-                  bg=NEON_CYAN, fg='black', activebackground=HOVER_CYAN, activeforeground='black',
                   font=('Arial', 9, 'bold'), bd=0, height=2, cursor="hand2").pack(fill="x", pady=4)
 
         self.btn_save_csv = tk.Button(actions_frame, text="Create CSV File", command=self.save_to_csv,
