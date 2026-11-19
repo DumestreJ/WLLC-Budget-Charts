@@ -11,7 +11,12 @@ class ChurchFinanceApp:
     def __init__(self, root):
         self.root = root
         self.root.title("West Linn Lutheran Church - Financial & Budget Dashboard")
-        self.root.geometry("1280x760")
+        win_w, win_h = 1280, 800
+        scr_w = self.root.winfo_screenwidth()
+        scr_h = self.root.winfo_screenheight()
+        pos_x = max(0, (scr_w - win_w) // 2)
+        pos_y = max(0, (scr_h - win_h) // 2)
+        self.root.geometry(f"{win_w}x{win_h}+{pos_x}+{pos_y}")
         self.root.minsize(920, 600)
         self.root.configure(bg=DARK_BG)
 
