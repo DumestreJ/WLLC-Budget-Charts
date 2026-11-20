@@ -53,7 +53,7 @@ class BudgetView:
         self._tip_pointer_artists = []
 
         # Seed your active session save handle to Desktop by default (overridden if a CSV is loaded from CWD)
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        desktop_dir = get_user_desktop()
         self.last_import_dir = desktop_dir if os.path.exists(desktop_dir) else os.getcwd()
 
         self.create_left_panel()
@@ -1199,7 +1199,7 @@ class BudgetView:
         exec_dir = os.getcwd()
         cwd_csv_filename = os.path.join(exec_dir, "budget_data.csv")
 
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        desktop_dir = get_user_desktop()
         desktop_csv_filename = os.path.join(desktop_dir, "budget_data.csv")
 
         # Check which file takes precedence without interrupting thread initialization
@@ -1214,6 +1214,13 @@ class BudgetView:
             # Ensure the text safely locks to "Create" if both paths come up empty
             if hasattr(self, 'btn_save') and self.btn_save:
                 self.btn_save.config(text="Create CSV File")
+            self.root.after(150, lambda: messagebox.showinfo(
+                "Default Budget Data Loaded",
+                "No saved 'budget_data.csv' file was found.\n\n"
+                "Loaded built-in default Budget allocations. Use 'Import Spreadsheet Budget' "
+                "or edit the values on the left, then click 'Create CSV File' to save.",
+                parent=self.root
+            ))
             return
 
         # If the file path check succeeds and we parse rows, ensure the text reads "Update"
@@ -1266,8 +1273,14 @@ class BudgetView:
             self.expense_title_var.trace_add("write", lambda *args: self.process_inputs(is_live=True))
 
             self.process_inputs()
+            self.loaded_csv_path = os.path.abspath(csv_filename)
             if hasattr(self, 'data_source_var'):
                 self.data_source_var.set("Source: CSV File")
+            self.root.after(150, lambda p=self.loaded_csv_path: messagebox.showinfo(
+                "Default Budget Data Loaded",
+                f"Loaded saved Budget data from:\n\n{p}",
+                parent=self.root
+            ))
 
         except Exception as e:
             messagebox.showerror("CSV Load Error", f"Could not parse CSV:\n{str(e)}")
@@ -1559,7 +1572,7 @@ class BudgetView:
 
         theme_choice = chosen["theme"]
         is_trans = (theme_choice == "transparent")
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        desktop_dir = get_user_desktop()
         try:
             inc_path = os.path.join(desktop_dir, "income_budget.png")
             exp_path = os.path.join(desktop_dir, "expenses_budget.png")
