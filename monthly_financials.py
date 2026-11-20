@@ -240,12 +240,19 @@ class MonthlyFinancialsView:
                 )
                 if not proceed:
                     return False
+                self._pending_source_notice = None
                 self.title_var.set(f"{budget_yr} Monthly Financial Results")
                 self.seed_from_active_budget()
                 if hasattr(self, 'data_source_var'):
                     self.data_source_var.set("Source: Budget Forecast")
-
                 self.rebuild_left_table()
+
+            if not silent and getattr(self, '_pending_source_notice', None):
+                n_title, n_msg = self._pending_source_notice
+                self._pending_source_notice = None
+                self.app.root.after(100, lambda t=n_title, m=n_msg: messagebox.showinfo(
+                    t, m, parent=self.app.root
+                ))
             self.redraw_chart()
             return True
 
@@ -278,12 +285,31 @@ class MonthlyFinancialsView:
             self.seed_from_active_budget()
 
         if hasattr(self, 'data_source_var'):
-            self.data_source_var.set("Source: CSV" if loaded_from_csv else "Source: Budget Forecast")
+            self.data_source_var.set("Source: CSV File" if loaded_from_csv else "Source: Budget Forecast")
         if hasattr(self, 'btn_save_csv'):
             self.btn_save_csv.config(text="Update CSV File" if loaded_from_csv else "Create CSV File")
 
         self.rebuild_left_table()
         self.redraw_chart()
+        if loaded_from_csv:
+            abs_fin_csv = os.path.abspath(csv_path)
+            notice = (
+                "Saved Monthly Financials Loaded",
+                f"Loaded saved Monthly Financials data from:\n\n{abs_fin_csv}"
+            )
+        else:
+            notice = (
+                "Default Budget Forecast Loaded",
+                "No saved 'monthly_financials.csv' file was found.\n\n"
+                "Seeded all 12 months with prorated Budget Forecast figures from the active Budget tab."
+            )
+
+        if silent:
+            self._pending_source_notice = notice
+        else:
+            self.app.root.after(100, lambda t=notice, m=notice: messagebox.showinfo(
+                t, m, parent=self.app.root
+            ))
         return True
 
     def clean_label(self, raw_text):
@@ -650,7 +676,7 @@ class MonthlyFinancialsView:
     def load_initial_financial_data(self):
         exec_dir = os.getcwd()
         cwd_csv = os.path.join(exec_dir, "monthly_financials.csv")
-        desktop_csv = os.path.join(os.path.expanduser("~"), "Desktop", "monthly_financials.csv")
+        desktop_csv = os.path.join(get_user_desktop(), "monthly_financials.csv")
 
         if os.path.exists(cwd_csv):
             self.load_from_csv(cwd_csv)
@@ -1446,7 +1472,8 @@ class MonthlyFinancialsView:
 
         self.tooltip = tk.Toplevel(self.app.root)
         self.tooltip.wm_overrideredirect(True)
-        self.tooltip.configure(bg=SILVER_TEXT, highlightbackground=border_color, highlightthickness=2, bd=0)
+        self.tooltip.configure(bg=SILVER_TEXT, highlightbackground=border_color, highlightcolor=border_color,
+                               highlightthickness=2, bd=0)
         tk.Label(self.tooltip, text=f"--- {scope_prefix}{rec['month']} {line_type}{tag_suffix} ---", bg=SILVER_TEXT, fg=CHARCOAL_TEXT, font=('Arial', 10, 'bold'), padx=10).pack(fill="x", pady=(8, 4))
         tk.Label(self.tooltip, text=body_txt, bg=SILVER_TEXT, fg=CHARCOAL_TEXT, font=('Consolas', 9, 'bold'), justify="left", padx=10).pack(fill="x", pady=(0, 4))
         self.tooltip_hint_lbl = tk.Label(self.tooltip, text="[Left-Click to Pin | Right-Click to Zoom]", bg=SILVER_TEXT, fg=AXIS_GRAY, font=('Arial', 8, 'italic'), padx=10)
@@ -1475,10 +1502,21 @@ class MonthlyFinancialsView:
             if not drag_state["moved"]:
                 self.toggle_tooltip_freeze()
 
+        def force_zoom_from_tip(e):
+            if self.tooltip_frozen:
+                self.tooltip_frozen = False
+                self._clear_tooltip_pointer()
+            if self.tooltip:
+                self.tooltip.destroy()
+                self.tooltip = None
+            self.open_sanctuary_zoom(idx, rec, line_type)
+
         for w in self.tooltip.winfo_children() + [self.tooltip]:
             w.bind("<ButtonPress-1>", on_tip_press)
             w.bind("<B1-Motion>", on_tip_drag)
             w.bind("<ButtonRelease-1>", on_tip_release)
+            w.bind("<Button-3>", force_zoom_from_tip)
+            w.bind("<Button-2>", force_zoom_from_tip)
 
         self.tooltip.update_idletasks()
         tip_w, tip_h = self.tooltip.winfo_reqwidth(), self.tooltip.winfo_reqheight()
@@ -1490,6 +1528,7 @@ class MonthlyFinancialsView:
         self.tooltip.wm_geometry(f"+{pos_x}+{pos_y}")
         target_ax = self.ax_bot if line_type == "Net" else self.ax_top
         self._pending_tip_anchor = (target_ax, (idx, target_y), border_color)
+        self._pinned_target = (idx, rec, line_type)
 
     def toggle_tooltip_freeze(self):
         if self.tooltip_frozen:
@@ -1513,12 +1552,20 @@ class MonthlyFinancialsView:
         if event.button == 1:
             self.toggle_tooltip_freeze()
         elif event.button == 3:
+            was_frozen = self.tooltip_frozen
+            pinned_hit = getattr(self, '_pinned_target', None)
             if self.tooltip_frozen:
                 self.tooltip_frozen = False
                 self._clear_tooltip_pointer()
+            if self.tooltip:
+                self.tooltip.destroy()
+                self.tooltip = None
             hit = self.resolve_hovered_target(event)
             if hit:
                 idx, rec, line_type, _ = hit
+                self.open_sanctuary_zoom(idx, rec, line_type)
+            elif was_frozen and pinned_hit:
+                idx, rec, line_type = pinned_hit
                 self.open_sanctuary_zoom(idx, rec, line_type)
 
     def open_sanctuary_zoom(self, idx, rec, line_type):
@@ -1703,7 +1750,7 @@ class MonthlyFinancialsView:
             tk.Button(dlg, text=lbl, command=lambda v=val: pick(v), bg=bg, fg=fg, font=('Arial', 9, 'bold'), pady=5, cursor="hand2").pack(fill="x", padx=25, pady=3)
         dlg.bind("<Escape>", lambda e: pick(None)); self.app.root.wait_window(dlg)
         if not chosen["theme"]: return
-        out_path = os.path.join(os.path.expanduser("~"), "Desktop", "monthly_financials_chart.png")
+        out_path = os.path.join(get_user_desktop(), "monthly_financials_chart.png")
         try:
             self.redraw_chart(theme=chosen["theme"], force=True)
             self.fig.savefig(out_path, dpi=200, transparent=(chosen["theme"] == "transparent"), facecolor=self.fig.get_facecolor())
