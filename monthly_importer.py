@@ -25,7 +25,7 @@ def import_financial_spreadsheet(monthly_view):
     """Opens unified Financial Statements import wizard: browse for the Excel workbook,
     pick Actuals and Forecast Budget tabs, and populate the Monthly Financials view.
     """
-    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    desktop_dir = get_user_desktop()
     default_dir = desktop_dir if os.path.exists(desktop_dir) else os.getcwd()
 
     dlg = tk.Toplevel(monthly_view.app.root)

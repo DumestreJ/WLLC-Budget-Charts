@@ -129,7 +129,7 @@ def import_excel_budget(app):
     """Opens a unified Budget Import wizard: choose source mode (Annual vs. Financials),
     browse for the Excel file, pick the worksheet tab/column, and populate the dashboard.
     """
-    desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+    desktop_dir = get_user_desktop()
     default_dir = desktop_dir if os.path.exists(desktop_dir) else os.getcwd()
 
     try:
