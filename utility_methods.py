@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import math
 import tkinter as tk
 from tkinter import ttk
+import os
 
 plt.style.use('dark_background')
 
@@ -349,25 +350,37 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
             ax_top.plot(xf, exp_arr[sb:], color=exp_color, linewidth=1.9, linestyle=':', marker='o', markersize=4, alpha=0.75, label="Expenses (Forecast)", zorder=3)
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(inc_arr[sb:] >= exp_arr[sb:]), interpolate=True, color=inc_color, alpha=0.07, zorder=2)
             ax_top.fill_between(xf, inc_arr[sb:], exp_arr[sb:], where=(exp_arr[sb:] > inc_arr[sb:]), interpolate=True, color=exp_color, alpha=0.07, zorder=2)
+
+    max_data_y = max(all_top_vals)
+    min_data_y = min(min_top_vals)
+    span_y = max(max_data_y - min_data_y, abs(max_data_y) * 0.25, 1.0)
+    step = 50000.0 if span_y > 100000 else (5000.0 if span_y > 15000 else (1000.0 if span_y > 2000 else 250.0))
+
+    min_headroom = max(step * 0.6, abs(max_data_y) * 0.08)
+    y_upper = max(math.ceil((max_data_y + min_headroom) / step) * step, step)
+    y_lower = (math.floor(min_data_y / step) * step) if min_data_y < 0 else 0
+    if y_lower < 0:
+        ax_top.axhline(0, color=DIVIDER_GRAY, linewidth=0.9, linestyle='-', zorder=1)
+    ax_top.set_ylim(y_lower, y_upper)
+
     if 0 < first_fc_idx < len(months):
         div_x = first_fc_idx - 0.5
         ax_top.axvline(x=div_x, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
         ax_bot.axvline(x=div_x, color=DIVIDER_GRAY, linestyle='--', linewidth=1.1, zorder=1)
 
-        y_min, y_max = ax_top.get_ylim()
-        y_span = max(y_max - y_min, 1.0)
+        y_span = max(y_upper - y_lower, 1.0)
         near_idxs = [i for i in (first_fc_idx - 1, first_fc_idx) if 0 <= i < len(months)]
         local_vals = [v for i in near_idxs for v in (inc_arr[i], exp_arr[i])]
         if custom_series:
             local_vals.extend(s["values"][i] for s in custom_series for i in near_idxs if i < len(s["values"]))
 
-        top_gap = y_max - max(local_vals) if local_vals else y_span
-        bot_gap = min(local_vals) - y_min if local_vals else 0.0
+        top_gap = y_upper - max(local_vals) if local_vals else y_span
+        bot_gap = min(local_vals) - y_lower if local_vals else 0.0
 
         if bot_gap > top_gap:
-            lbl_y, lbl_va = y_min + 0.03 * y_span, 'bottom'
+            lbl_y, lbl_va = y_lower + 0.03 * y_span, 'bottom'
         else:
-            lbl_y, lbl_va = y_max - 0.03 * y_span, 'top'
+            lbl_y, lbl_va = y_upper - 0.03 * y_span, 'top'
 
         if first_fc_idx >= len(months) - 1:
             ax_top.text(div_x - 0.12, lbl_y, "Forecast →", color=MUTED_GRAY, fontsize=8, fontweight='bold', ha='right', va=lbl_va)
@@ -382,16 +395,6 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
     leg = ax_top.legend(loc='upper left', frameon=True, facecolor=CHARCOAL_TEXT if not is_light else LIGHT_LEGEND_BG, edgecolor=BORDER_GRAY, fontsize=8)
     for txt in leg.get_texts():
         txt.set_color(fg_color)
-
-    max_data_y = max(all_top_vals)
-    min_data_y = min(min_top_vals)
-    span_y = max(max_data_y - min_data_y, 1.0)
-    step = 50000.0 if span_y > 100000 else (5000.0 if span_y > 15000 else (1000.0 if span_y > 2000 else 250.0))
-    y_upper = math.ceil(max_data_y / step) * step
-    y_lower = (math.floor(min_data_y / step) * step) if min_data_y < 0 else 0
-    if y_lower < 0:
-        ax_top.axhline(0, color=DIVIDER_GRAY, linewidth=0.9, linestyle='-', zorder=1)
-    ax_top.set_ylim(y_lower, max(y_upper, step))
 
     # --- BOTTOM PANEL: MAGNIFIED NET P&L OR VARIANCE VS. BUDGET ---
     ax_bot.axhline(0, color=MUTED_GRAY if not is_light else SLATE_GRAY, linewidth=1.1, zorder=2)
@@ -541,3 +544,29 @@ def run_with_busy_banner(parent, message, task_fn):
     finally:
         overlay.destroy()
         parent.config(cursor="")
+
+def get_user_desktop():
+    """Returns the true active Desktop folder on Windows (handling OneDrive/redirected Desktops)
+    with clean fallbacks for non-Windows or restricted environments.
+    """
+    if os.name == "nt":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            CSIDL_DESKTOPDIRECTORY = 0x0010
+            buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
+            if ctypes.windll.shell32.SHGetFolderPathW(None, CSIDL_DESKTOPDIRECTORY, None, 0, buf) == 0:
+                if buf.value and os.path.isdir(buf.value):
+                    return buf.value
+        except Exception:
+            pass
+
+    home = os.path.expanduser("~")
+    for candidate in (
+        os.path.join(home, "OneDrive", "Desktop"),
+        os.path.join(home, "Desktop"),
+        os.environ.get("PUBLIC", "") and os.path.join(os.environ["PUBLIC"], "Desktop"),
+    ):
+        if candidate and os.path.isdir(candidate):
+            return candidate
+    return os.getcwd()
