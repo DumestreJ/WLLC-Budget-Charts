@@ -20,7 +20,6 @@ class ChurchFinanceApp:
         self.root.minsize(920, 600)
         self.root.configure(bg=DARK_BG)
 
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
         self.active_mode_var = tk.StringVar(value="Budget")
 
         self.paned_window = tk.PanedWindow(self.root, orient=tk.HORIZONTAL, bg=GRID_SLATE, sashwidth=4, bd=0)
@@ -70,7 +69,7 @@ class ChurchFinanceApp:
 
     @property
     def last_import_dir(self):
-        return getattr(self.budget_view, 'last_import_dir', os.path.join(os.path.expanduser("~"), "Desktop"))
+        return getattr(self.budget_view, 'last_import_dir', get_user_desktop())
 
     @last_import_dir.setter
     def last_import_dir(self, value):
