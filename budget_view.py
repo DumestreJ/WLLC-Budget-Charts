@@ -384,7 +384,7 @@ class BudgetView:
 
         val_var = tk.StringVar(value=val_str)
         val_entry = tk.Entry(row, textvariable=val_var, bg=BUTTON_BG, fg='white', insertbackground='white',
-                             font=('Arial', 9, 'bold'), width=8, justify="right")
+                             font=('Arial', 9, 'bold'), width=7, justify="right")
         val_entry.pack(side="right", padx=2, fill=None, expand=False)
 
         if not is_total:
