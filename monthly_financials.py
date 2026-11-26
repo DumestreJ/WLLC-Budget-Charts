@@ -45,6 +45,7 @@ class MonthlyFinancialsView:
         self.chart_mode_var = tk.StringVar(value="Cumulative")
         self.view_profile_var = tk.StringVar(value="Bookkeeper Mode (Full Details)")
         self.show_acct_nums_var = tk.BooleanVar(value=False)
+        self.show_ytd_note_var = tk.BooleanVar(value=True)
 
         self.records = []
         self.row_widgets = []
@@ -181,6 +182,7 @@ class MonthlyFinancialsView:
             self.chart_mode_var.get(),
             self.include_surplus_var.get(),
             self.show_forecast_var.get(),
+            self.show_ytd_note_var.get(),
             rec_sig,
             bud_sig,
             filt_sig,
@@ -216,7 +218,8 @@ class MonthlyFinancialsView:
             theme=theme, monthly_budget=monthly_budget_exp,
             monthly_budget_inc=monthly_budget_inc, is_cumulative=is_cumulative,
             custom_series=custom_series, sel_kind=sel_kind,
-            show_filtered_budgets=getattr(self, 'show_filtered_budgets', True)
+            show_filtered_budgets=getattr(self, 'show_filtered_budgets', True),
+            show_ytd_note=self.show_ytd_note_var.get()
         )
         if theme == "dark":
             self.canvas.draw()
@@ -505,7 +508,7 @@ class MonthlyFinancialsView:
 
         title_box = tk.Frame(self.left_container, bg=DARK_BG)
         title_box.pack(side="top", fill="x", padx=12, pady=(8, 4))
-        tk.Label(title_box, text="FINANCIAL CHART TITLE", fg=NEON_CYAN, bg=DARK_BG,
+        tk.Label(title_box, text="FINANCIAL CHART TITLE:", fg=NEON_CYAN, bg=DARK_BG,
                  font=('Arial', 8, 'bold')).pack(anchor="w")
         title_ent = tk.Entry(title_box, textvariable=self.title_var, bg=AXIS_GRAY, fg='white',
                              insertbackground='white', bd=1, relief="solid", font=('Arial', 9, 'bold'))
@@ -528,8 +531,8 @@ class MonthlyFinancialsView:
         hdr_frame.columnconfigure(3, minsize=36)
 
         tk.Label(hdr_frame, text="Mo", bg=CHARCOAL_TEXT, fg=SOFT_GRAY, font=('Arial', 8, 'bold'), anchor="w").grid(row=0, column=0, sticky="w", padx=3, pady=2)
-        tk.Label(hdr_frame, text="Income", bg=CHARCOAL_TEXT, fg=NEON_CYAN, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=1, sticky="e", padx=4, pady=2)
-        tk.Label(hdr_frame, text="Expense", bg=CHARCOAL_TEXT, fg=NEON_PINK, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=2, sticky="e", padx=4, pady=2)
+        tk.Label(hdr_frame, text="Income", bg=CHARCOAL_TEXT, fg=NEON_CYAN, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=1, sticky="e", padx=0, pady=2)
+        tk.Label(hdr_frame, text="Expense", bg=CHARCOAL_TEXT, fg=NEON_PINK, font=('Arial', 8, 'bold'), anchor="e").grid(row=0, column=2, sticky="e", padx=0, pady=2)
         tk.Label(hdr_frame, text="Type", bg=CHARCOAL_TEXT, fg=MUTED_GRAY, font=('Arial', 8, 'bold'), anchor="center").grid(row=0, column=3, sticky="ew", padx=2, pady=2)
 
         self.scroll_outer = tk.Frame(self.left_container, bg=DARK_BG)
@@ -618,6 +621,13 @@ class MonthlyFinancialsView:
 
         tk.Checkbutton(
             ctrl_bar, text="Acct #s", variable=self.show_acct_nums_var,
+            bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
+            activebackground=DARK_BG, activeforeground='white',
+            font=('Arial', 9, 'bold'), command=self.redraw_chart
+        ).pack(side="left", padx=(0, 10))
+
+        tk.Checkbutton(
+            ctrl_bar, text="YTD P&L Note", variable=self.show_ytd_note_var,
             bg=DARK_BG, fg=SOFT_GRAY, selectcolor=AXIS_GRAY,
             activebackground=DARK_BG, activeforeground='white',
             font=('Arial', 9, 'bold'), command=self.redraw_chart
@@ -1005,12 +1015,12 @@ class MonthlyFinancialsView:
             ent_mo.grid(row=0, column=0, sticky="ew", padx=2)
 
             ent_inc = tk.Entry(row_f, textvariable=inc_var, bg=CHARCOAL_TEXT, fg=NEON_CYAN, insertbackground='white',
-                               bd=1, relief="solid", font=('Arial', 8, 'bold'), width=7, justify="right")
-            ent_inc.grid(row=0, column=1, sticky="ew", padx=2)
+                               bd=1, relief="solid", font=('Arial', 8, 'bold'), width=5, justify="right")
+            ent_inc.grid(row=0, column=1, sticky="ew", padx=6)
 
             ent_exp = tk.Entry(row_f, textvariable=exp_var, bg=CHARCOAL_TEXT, fg=NEON_PINK, insertbackground='white',
-                               bd=1, relief="solid", font=('Arial', 8, 'bold'), width=7, justify="right")
-            ent_exp.grid(row=0, column=2, sticky="ew", padx=2)
+                               bd=1, relief="solid", font=('Arial', 8, 'bold'), width=5, justify="right")
+            ent_exp.grid(row=0, column=2, sticky="ew", padx=4)
 
             def toggle_forecast_flag(r_idx=idx, var=fc_var, btn=None, m_ent=None):
                 new_state = not var.get()
@@ -1062,15 +1072,6 @@ class MonthlyFinancialsView:
             except ValueError:
                 pass
             rec["is_forecast"] = fc_v.get()
-        self.redraw_chart()
-
-    def add_month_row(self):
-        next_mo = ALL_MONTHS[len(self.records) % 12]
-        self.records.append({
-            "month": next_mo, "income": 0.0, "expense": 0.0, "other_income": 0.0,
-            "is_forecast": True, "inc_cats": {}, "exp_cats": {}, "other_cats": {}
-        })
-        self.rebuild_left_table()
         self.redraw_chart()
 
     def save_to_csv(self):
