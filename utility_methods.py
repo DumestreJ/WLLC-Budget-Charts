@@ -252,7 +252,8 @@ def create_smart_pie(fig, sizes, labels, total_value, title, title_color, curren
 
 def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_text, mode_tag, surplus_tag,
                               theme="dark", monthly_budget=0.0, monthly_budget_inc=0.0, is_cumulative=True,
-                              custom_series=None, sel_kind=None, show_filtered_budgets=True):
+                              custom_series=None, sel_kind=None, show_filtered_budgets=True,
+                              show_ytd_note=True):
     """Renders a synchronized 72%/28% Top/Bottom dual-panel chart:
     Top: Gross Income vs. Expenses (or custom filtered category/subcategory lines) + Budget benchmark.
     Bottom: Magnified Net Profit/Loss (or Variance vs. Budget when filtered) above/below $0 waterline.
@@ -432,6 +433,59 @@ def create_monthly_line_chart(fig, months, inc_arr, exp_arr, is_fc_flags, title_
     bot_step = 5000.0 if max_abs_net > 10000 else (1000.0 if max_abs_net > 2000 else 250.0)
     y_pad = math.ceil((max_abs_net * 1.25) / bot_step) * bot_step
     ax_bot.set_ylim(-y_pad, y_pad)
+
+    if show_ytd_note and is_cumulative and first_fc_idx > 0 and len(months) > 0:
+        last_act_idx = first_fc_idx - 1
+        act_x = float(x[last_act_idx])
+        act_y = float(net_arr[last_act_idx])
+        is_profit = act_y >= 0
+        note_color = pos_color if is_profit else exp_color
+        sign_str = "+" if act_y > 0 else ("-" if act_y < 0 else "")
+        amt_str = f"{sign_str}${abs(act_y):,.0f}"
+
+        if is_filtered:
+            note_text = f"YTD Variance: {amt_str}"
+        else:
+            note_text = f"YTD Net: {amt_str}" if is_profit else f"Cumulative Deficit: {amt_str}"
+
+        # Place midway between $0 and the opposite y-limit so it sits cleanly in open space
+        target_y = (-y_pad * 0.5) if is_profit else (y_pad * 0.5)
+
+        # Nudge horizontal alignment near left/right plot edges so the box never clips
+        if last_act_idx == 0:
+            ha_align = "left"
+        elif last_act_idx >= len(months) - 1:
+            ha_align = "right"
+        else:
+            ha_align = "center"
+
+        box_bg = PURE_WHITE if is_light else CHARCOAL_TEXT
+        ax_bot.annotate(
+            note_text,
+            xy=(act_x, act_y),
+            xytext=(act_x, target_y),
+            textcoords="data",
+            ha=ha_align,
+            va="center",
+            color=note_color,
+            fontsize=8.5,
+            fontweight="bold",
+            bbox=dict(
+                boxstyle="round,pad=0.3",
+                facecolor=box_bg,
+                edgecolor=note_color,
+                linewidth=1.1,
+                alpha=0.92,
+            ),
+            arrowprops=dict(
+                arrowstyle="->",
+                color=note_color,
+                lw=1.3,
+                shrinkA=0,
+                shrinkB=4,
+            ),
+            zorder=7,
+        )
 
     for ax in (ax_top, ax_bot):
         for spine in ['top', 'right']:
